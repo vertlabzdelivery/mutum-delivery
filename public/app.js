@@ -1,136 +1,54 @@
 const STORAGE_KEYS = {
-  accessToken: 'delivery_user_access_token',
-  refreshToken: 'delivery_user_refresh_token',
-  currentUser: 'delivery_user_current_user',
-  apiBaseUrl: 'delivery_user_api_base_url'
+  apiBaseUrl: 'deliveryRestaurantPanel.apiBaseUrl',
+  accessToken: 'deliveryRestaurantPanel.accessToken',
+  refreshToken: 'deliveryRestaurantPanel.refreshToken',
+  currentUser: 'deliveryRestaurantPanel.currentUser',
+  currentRestaurantId: 'deliveryRestaurantPanel.currentRestaurantId'
+};
+
+const STATUS_LABELS = {
+  PENDING: 'Pendente',
+  ACCEPTED: 'Aceito',
+  PREPARING: 'Em preparo',
+  DELIVERY: 'Saiu para entrega',
+  DELIVERED: 'Entregue',
+  CANCELED: 'Cancelado'
+};
+
+const ORDER_STATUS_FLOW = {
+  PENDING: ['ACCEPTED', 'CANCELED'],
+  ACCEPTED: ['PREPARING', 'CANCELED'],
+  PREPARING: ['DELIVERY', 'CANCELED'],
+  DELIVERY: ['DELIVERED'],
+  DELIVERED: [],
+  CANCELED: []
 };
 
 const state = {
-  apiBaseUrl: (localStorage.getItem(STORAGE_KEYS.apiBaseUrl) || 'http://localhost:3001').replace(/\/$/, ''),
-  accessToken: localStorage.getItem(STORAGE_KEYS.accessToken) || '',
+    accessToken: localStorage.getItem(STORAGE_KEYS.accessToken) || '',
   refreshToken: localStorage.getItem(STORAGE_KEYS.refreshToken) || '',
   currentUser: readJson(STORAGE_KEYS.currentUser),
-  addresses: [],
-  selectedAddressId: '',
-  selectedRestaurant: null,
-  restaurants: [],
-  restaurantBuckets: { available: [], closed: [], cityOnly: [] },
+  restaurant: null,
   categories: [],
-  catalog: null,
-  cart: [],
-  deliveryFee: 0,
-  currentQuote: null,
-  currentItem: null,
-  currentView: 'list',
+  menuItems: [],
+  deliveryZones: [],
+  orders: [],
   states: [],
-  cities: [],
-  neighborhoods: [],
-  authMode: 'login',
-  orders: []
+  citiesByState: {},
+  neighborhoodsByCity: {},
+  orderFilter: 'ALL',
+  openingHours: []
 };
 
-const el = {
-  authSection: document.getElementById('authSection'),
-  appSection: document.getElementById('appSection'),
-  loginForm: document.getElementById('loginForm'),
-  registerForm: document.getElementById('registerForm'),
-  showLoginBtn: document.getElementById('showLoginBtn'),
-  showRegisterBtn: document.getElementById('showRegisterBtn'),
-  loginPage: document.getElementById('loginPage'),
-  registerPage: document.getElementById('registerPage'),
-  configBtn: document.getElementById('configBtn'),
-  reloadBtn: document.getElementById('reloadBtn'),
-  backToRestaurantsBtn: document.getElementById('backToRestaurantsBtn'),
-  logoutBtn: document.getElementById('logoutBtn'),
-  profileBtn: document.getElementById('profileBtn'),
-  headerGuest: document.getElementById('headerGuest'),
-  headerUser: document.getElementById('headerUser'),
-  headerUserName: document.getElementById('headerUserName'),
-  headerAddressBtn: document.getElementById('headerAddressBtn'),
-  headerAddressText: document.getElementById('headerAddressText'),
-  addressModal: document.getElementById('addressModal'),
-  addressList: document.getElementById('addressList'),
-  openAddAddressBtn: document.getElementById('openAddAddressBtn'),
-  addressFormModal: document.getElementById('addressFormModal'),
-  addressLabelInput: document.getElementById('addressLabelInput'),
-  addressZipInput: document.getElementById('addressZipInput'),
-  addressStreetInput: document.getElementById('addressStreetInput'),
-  addressNumberInput: document.getElementById('addressNumberInput'),
-  addressComplementInput: document.getElementById('addressComplementInput'),
-  addressReferenceInput: document.getElementById('addressReferenceInput'),
-  stateSelect: document.getElementById('stateSelect'),
-  citySelect: document.getElementById('citySelect'),
-  neighborhoodSelect: document.getElementById('neighborhoodSelect'),
-  addressDefaultInput: document.getElementById('addressDefaultInput'),
-  saveAddressBtn: document.getElementById('saveAddressBtn'),
-  restaurantSections: document.getElementById('restaurantSections'),
-  selectedRestaurantPage: document.getElementById('selectedRestaurantPage'),
-  selectedRestaurantPanel: document.getElementById('selectedRestaurantPanel'),
-  restaurantTitle: document.getElementById('restaurantTitle'),
-  restaurantSubtitle: document.getElementById('restaurantSubtitle'),
-  restaurantRatingBadge: document.getElementById('restaurantRatingBadge'),
-  restaurantFeeMeta: document.getElementById('restaurantFeeMeta'),
-  restaurantTimeMeta: document.getElementById('restaurantTimeMeta'),
-  restaurantStatusMeta: document.getElementById('restaurantStatusMeta'),
-  restaurantLogo: document.getElementById('restaurantLogo'),
-  restaurantLogoFallback: document.getElementById('restaurantLogoFallback'),
-  categoriesPanel: document.getElementById('categoriesPanel'),
-  menuPanel: document.getElementById('menuPanel'),
-  categoryTabs: document.getElementById('categoryTabs'),
-  menuSections: document.getElementById('menuSections'),
-  menuEmpty: document.getElementById('menuEmpty'),
-  cartColumn: document.getElementById('cartColumn'),
-  paymentMethodSelect: document.getElementById('paymentMethodSelect'),
-  cashChangeWrap: document.getElementById('cashChangeWrap'),
-  cashChangeInput: document.getElementById('cashChangeInput'),
-  deliveryNameInput: document.getElementById('deliveryNameInput'),
-  deliveryPhoneInput: document.getElementById('deliveryPhoneInput'),
-  orderNotesInput: document.getElementById('orderNotesInput'),
-  cartItems: document.getElementById('cartItems'),
-  cartEmpty: document.getElementById('cartEmpty'),
-  subtotalValue: document.getElementById('subtotalValue'),
-  deliveryFeeValue: document.getElementById('deliveryFeeValue'),
-  totalValue: document.getElementById('totalValue'),
-  quoteBtn: document.getElementById('quoteBtn'),
-  submitOrderBtn: document.getElementById('submitOrderBtn'),
-  configModal: document.getElementById('configModal'),
-  apiBaseUrlInput: document.getElementById('apiBaseUrlInput'),
-  saveConfigBtn: document.getElementById('saveConfigBtn'),
-  testConfigBtn: document.getElementById('testConfigBtn'),
-  profileModal: document.getElementById('profileModal'),
-  ordersBtn: document.getElementById('ordersBtn'),
-  ordersModal: document.getElementById('ordersModal'),
-  ordersList: document.getElementById('ordersList'),
-  orderDetailsModal: document.getElementById('orderDetailsModal'),
-  orderDetailsContent: document.getElementById('orderDetailsContent'),
-  profileName: document.getElementById('profileName'),
-  profilePhone: document.getElementById('profilePhone'),
-  profileAddress: document.getElementById('profileAddress'),
-  itemModal: document.getElementById('itemModal'),
-  itemModalTitle: document.getElementById('itemModalTitle'),
-  itemModalSubtitle: document.getElementById('itemModalSubtitle'),
-  itemBasePrice: document.getElementById('itemBasePrice'),
-  itemBadges: document.getElementById('itemBadges'),
-  itemModalImage: document.getElementById('itemModalImage'),
-  itemModalImageFallback: document.getElementById('itemModalImageFallback'),
-  optionGroupsRoot: document.getElementById('optionGroupsRoot'),
-  itemQuantityInput: document.getElementById('itemQuantityInput'),
-  itemNotesInput: document.getElementById('itemNotesInput'),
-  itemSummaryBase: document.getElementById('itemSummaryBase'),
-  itemSummaryExtras: document.getElementById('itemSummaryExtras'),
-  itemSummaryTotal: document.getElementById('itemSummaryTotal'),
-  addToCartBtn: document.getElementById('addToCartBtn'),
-  toastRoot: document.getElementById('toastRoot')
-};
+const el = {};
 
-init();
+document.addEventListener('DOMContentLoaded', init);
 
 function init() {
+  bindElements();
   bindEvents();
-  el.apiBaseUrlInput.value = state.apiBaseUrl;
   updateHeader();
-  setAuthMode('login');
-  toggleCashChange();
+
   if (state.accessToken) {
     bootstrapAuthenticatedArea();
   } else {
@@ -138,227 +56,120 @@ function init() {
   }
 }
 
-function bindEvents() {
-  el.loginForm.addEventListener('submit', handleLogin);
-  el.registerForm?.addEventListener('submit', handleRegister);
-  el.showLoginBtn?.addEventListener('click', () => setAuthMode('login'));
-  el.showRegisterBtn?.addEventListener('click', () => setAuthMode('register'));
-  el.logoutBtn?.addEventListener('click', () => logout(true));
-  el.profileBtn?.addEventListener('click', openProfileModal);
-  el.ordersBtn?.addEventListener('click', openOrdersModal);
-  el.ordersList?.addEventListener('click', handleOrdersListClick);
-  el.headerAddressBtn?.addEventListener('click', openAddressModal);
-  el.backToRestaurantsBtn?.addEventListener('click', () => openRestaurantListView(true));
-  el.stateSelect?.addEventListener('change', handleStateChange);
-  el.citySelect?.addEventListener('change', handleCityChange);
-  el.saveAddressBtn?.addEventListener('click', saveAddress);
-  el.openAddAddressBtn?.addEventListener('click', openAddressFormModal);
-  el.reloadBtn.addEventListener('click', async () => {
-    await loadRestaurantsByAddress();
-    await loadSelectedRestaurantCatalog();
-    showToast('Dados recarregados.', 'success');
-  });
-  el.categoryTabs.addEventListener('click', handleCategoryTabClick);
-  el.menuSections.addEventListener('click', handleMenuClick);
-  el.restaurantSections.addEventListener('click', handleRestaurantCardClick);
-  el.addressList?.addEventListener('click', handleRestaurantCardClick);
-  el.itemQuantityInput.addEventListener('input', updateCurrentItemSummary);
-  el.itemNotesInput.addEventListener('input', updateCurrentItemSummary);
-  el.optionGroupsRoot.addEventListener('change', updateCurrentItemSummary);
-  el.addToCartBtn.addEventListener('click', addCurrentItemToCart);
-  el.cartItems.addEventListener('click', handleCartActions);
-  el.quoteBtn?.addEventListener('click', quoteOrder);
-  el.submitOrderBtn.addEventListener('click', submitOrder);
-  el.paymentMethodSelect.addEventListener('change', toggleCashChange);
-  el.configBtn.addEventListener('click', () => toggleModal('configModal', true));
-  el.saveConfigBtn.addEventListener('click', saveApiConfig);
-  el.testConfigBtn.addEventListener('click', testApiConnection);
-  document.querySelectorAll('[data-close-modal]').forEach((button) => {
-    button.addEventListener('click', () => toggleModal(button.dataset.closeModal, false));
-  });
-  document.addEventListener('click', (event) => {
-    const modal = event.target.closest('.modal');
-    if (modal && event.target === modal) modal.classList.add('hidden');
-  });
+function bindElements() {
+  [
+    'toastRoot','configModal','closeConfigBtn','apiBaseUrlInput','saveConfigBtn','testConfigBtn','configBtn',
+    'headerGuest','headerUser','headerUserName','logoutBtn','authSection','dashboardSection','loginForm',
+    'restaurantTitle','restaurantSubtitle','restaurantStatusBadge','restaurantCityBadge','restaurantLogo','restaurantLogoFallback',
+    'openRestaurantModalBtn','openMenuModalBtn','openZoneModalBtn','openHoursModalBtn',
+    'hoursModal','hoursForm','hoursGrid','resetHoursBtn','reloadOrdersBtn','orderFilterSelect','ordersList','ordersEmptyState','addCategoryShortcutBtn','addMenuItemShortcutBtn',
+    'restaurantModal','restaurantForm','restaurantName','restaurantPhone','restaurantDescription','restaurantLogoUrl','restaurantAddress','restaurantStateSelect','restaurantCitySelect','restaurantMinOrder','restaurantIsActive','toggleRestaurantStatusBtn',
+    'menuModal','categoriesModal','categoryEditorModal','menuEditorModal','categoryForm','categoryId','categoryName','categorySortOrder','categoryDescription','categoryImageUrl','categoryIsActive','resetCategoryFormBtn','deleteCategoryBtn','categoryList','categoryEmptyState','openCategoriesModalBtn','addCategoryFromModalBtn',
+    'menuForm','menuItemId','menuName','menuPrice','menuDescription','menuImageUrl','menuCategoryId','menuSortOrder','menuPromotionalText','menuMaxPerOrder','menuAvailable','menuFeatured','menuAllowsNotes','addOptionGroupBtn','optionGroupsContainer','resetMenuFormBtn','deleteMenuItemBtn','menuList','menuEmptyState',
+    'zoneModal','zoneEditorModal','addZoneFromModalBtn','zoneForm','zoneId','zoneStateSelect','zoneCitySelect','zoneNeighborhoodSelect','zoneFee','zoneMinTime','zoneMaxTime','zoneActive','resetZoneFormBtn','deleteZoneBtn','zonesList','zonesEmptyState',
+    'optionGroupTemplate','choiceTemplate'
+  ].forEach((id) => el[id] = document.getElementById(id));
 }
 
-function setAuthMode(mode) {
-  state.authMode = mode;
-  el.showLoginBtn?.classList.toggle('active', mode === 'login');
-  el.showRegisterBtn?.classList.toggle('active', mode === 'register');
-  el.loginPage?.classList.toggle('hidden', mode !== 'login');
-  el.registerPage?.classList.toggle('hidden', mode !== 'register');
+function bindEvents() {
+  el.closeConfigBtn.addEventListener('click', () => toggleModal('configModal', false));
+  document.body.addEventListener('click', handleGlobalClicks);
+
+  el.loginForm.addEventListener('submit', handleLogin);
+  el.logoutBtn.addEventListener('click', () => logout(true));
+
+  el.openRestaurantModalBtn.addEventListener('click', () => toggleModal('restaurantModal', true));
+  el.openMenuModalBtn.addEventListener('click', () => toggleModal('menuModal', true));
+  el.openZoneModalBtn.addEventListener('click', () => toggleModal('zoneModal', true));
+  el.addZoneFromModalBtn?.addEventListener('click', () => {
+    resetZoneForm();
+    toggleModal('zoneEditorModal', true);
+    el.zoneStateSelect.focus();
+  });
+  el.openHoursModalBtn?.addEventListener('click', () => { renderHoursForm(); toggleModal('hoursModal', true); });
+  el.openCategoriesModalBtn?.addEventListener('click', () => toggleModal('categoriesModal', true));
+  el.addCategoryFromModalBtn?.addEventListener('click', () => {
+    resetCategoryForm();
+    toggleModal('categoryEditorModal', true);
+    el.categoryName.focus();
+  });
+  el.addMenuItemShortcutBtn?.addEventListener('click', () => {
+    resetMenuForm();
+    toggleModal('menuEditorModal', true);
+    el.menuName.focus();
+  });
+
+  el.orderFilterSelect.addEventListener('change', () => {
+    state.orderFilter = el.orderFilterSelect.value;
+    renderOrders();
+  });
+  el.reloadOrdersBtn.addEventListener('click', loadOrders);
+  el.ordersList.addEventListener('click', handleOrderActions);
+
+  el.restaurantStateSelect.addEventListener('change', handleRestaurantStateChange);
+  el.restaurantForm.addEventListener('submit', handleSaveRestaurant);
+  el.toggleRestaurantStatusBtn.addEventListener('click', handleToggleRestaurantStatus);
+  el.hoursForm?.addEventListener('submit', handleSaveHours);
+  el.resetHoursBtn?.addEventListener('click', () => { state.openingHours = []; renderHoursForm(); });
+
+  el.categoryForm.addEventListener('submit', handleSaveCategory);
+  el.resetCategoryFormBtn.addEventListener('click', resetCategoryForm);
+  el.deleteCategoryBtn.addEventListener('click', handleDeleteCategory);
+  el.categoryList.addEventListener('click', handleCategoryActions);
+
+  el.menuForm.addEventListener('submit', handleSaveMenuItem);
+  el.addOptionGroupBtn.addEventListener('click', () => addOptionGroup());
+  el.optionGroupsContainer.addEventListener('click', handleOptionGroupActions);
+  el.resetMenuFormBtn.addEventListener('click', resetMenuForm);
+  el.deleteMenuItemBtn.addEventListener('click', handleDeleteMenuItem);
+  el.menuList.addEventListener('click', handleMenuListActions);
+
+  el.zoneStateSelect.addEventListener('change', handleZoneStateChange);
+  el.zoneCitySelect.addEventListener('change', handleZoneCityChange);
+  el.zoneForm.addEventListener('submit', handleSaveZone);
+  el.resetZoneFormBtn.addEventListener('click', resetZoneForm);
+  el.deleteZoneBtn.addEventListener('click', handleDeleteZone);
+  el.zonesList.addEventListener('click', handleZoneListActions);
+}
+
+function handleGlobalClicks(event) {
+  const closeBtn = event.target.closest('[data-close-modal]');
+  if (closeBtn) {
+    toggleModal(closeBtn.dataset.closeModal, false);
+    return;
+  }
+  const modal = event.target.classList.contains('modal') ? event.target : null;
+  if (modal) toggleModal(modal.id, false);
+}
+
+function toggleModal(id, show) {
+  const node = typeof id === 'string' ? document.getElementById(id) : id;
+  if (!node) return;
+  node.classList.toggle('hidden', !show);
 }
 
 function updateHeader() {
-  const isLoggedIn = Boolean(state.accessToken && state.currentUser);
-  el.headerGuest.classList.toggle('hidden', isLoggedIn);
-  el.headerUser.classList.toggle('hidden', !isLoggedIn);
-  el.headerUserName.textContent = isLoggedIn ? firstName(state.currentUser?.name) : '';
-  updateHeaderAddress();
-}
-
-function updateHeaderAddress() {
-  const address = state.addresses.find((item) => item.id === state.selectedAddressId);
-  el.headerAddressText.textContent = address ? address.shortText : 'Escolha um endereço para ver os restaurantes.';
-}
-
-function openProfileModal() {
-  const address = state.addresses.find((item) => item.id === state.selectedAddressId);
-  el.profileName.textContent = state.currentUser?.name || '-';
-  el.profilePhone.textContent = state.currentUser?.phone || '-';
-  el.profileAddress.textContent = address?.labelText || 'Nenhum endereço selecionado';
-  toggleModal('profileModal', true);
-}
-
-
-async function openOrdersModal() {
-  if (!state.accessToken) return;
-  el.ordersList.innerHTML = '<div class="empty">Carregando pedidos...</div>';
-  toggleModal('ordersModal', true);
-  const attempts = ['/orders/my', '/orders/user/me', '/orders/me'];
-  let orders = null;
-  let lastError = null;
-  for (const path of attempts) {
-    try {
-      const result = await apiRequest(path, { auth: true, retryOn401: true });
-      orders = unwrapCollection(result);
-      break;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  if (!orders) {
-    el.ordersList.innerHTML = `<div class="empty">${escapeHtml(lastError?.message || 'Não foi possível carregar os pedidos.')}</div>`;
-    return;
-  }
-  if (!orders.length) {
-    state.orders = [];
-    el.ordersList.innerHTML = '<div class="empty">Você ainda não tem pedidos.</div>';
-    return;
-  }
-  state.orders = orders;
-  el.ordersList.innerHTML = orders.map(renderOrderCard).join('');
-}
-
-function handleOrdersListClick(event) {
-  const card = event.target.closest('.order-card');
-  if (!card) return;
-  const orderId = card.dataset.orderId;
-  const order = state.orders.find((item) => String(item.id || item.orderId || item.uuid) === orderId);
-  if (!order) return;
-  openOrderDetails(order);
-}
-
-function renderOrderCard(order) {
-  const items = unwrapCollection(order.items || order.orderItems || []);
-  const preview = items.slice(0, 3).map((item) => item.menuItemName || item.name || item.menuItem?.name).filter(Boolean).join(', ');
-  const total = Number(order.totalAmount || order.total || order.grandTotal || 0);
-  const status = String(order.status || 'PENDENTE').replace(/_/g, ' ');
-  const restaurant = order.restaurantName || order.restaurant?.name || 'Restaurante';
-  const created = formatDateTime(order.createdAt || order.created_at || order.date);
-  const orderId = String(order.id || order.orderId || order.uuid || '');
-  return `
-    <article class="order-card" data-order-id="${escapeHtml(orderId)}" role="button" tabindex="0">
-      <div class="order-card-head">
-        <strong>${escapeHtml(restaurant)}</strong>
-        <span class="order-status-badge">${escapeHtml(status)}</span>
-      </div>
-      <div class="order-items-preview">${escapeHtml(preview || 'Itens do pedido')}</div>
-      <div class="restaurant-inline-meta">${escapeHtml(created)} • ${escapeHtml(formatCurrency(total))}</div>
-    </article>
-  `;
-}
-
-function openOrderDetails(order) {
-  const items = unwrapCollection(order.items || order.orderItems || []);
-  const address = order.address || order.deliveryAddress || order.customerAddress || null;
-  const payment = order.paymentMethod || order.payment || 'Não informado';
-  const deliveryFee = Number(order.deliveryFee || order.fee || 0);
-  const subtotal = Number(order.subtotal || order.subTotal || order.itemsTotal || 0);
-  const total = Number(order.totalAmount || order.total || order.grandTotal || 0);
-  const status = String(order.status || 'PENDENTE').replace(/_/g, ' ');
-  const restaurant = order.restaurantName || order.restaurant?.name || 'Restaurante';
-  const created = formatDateTime(order.createdAt || order.created_at || order.date);
-  const addressText = [
-    address?.street,
-    address?.number,
-    address?.neighborhood?.name || address?.neighborhoodName,
-    address?.city?.name || address?.cityName,
-    address?.state?.uf || address?.stateUf
-  ].filter(Boolean).join(' • ');
-
-  el.orderDetailsContent.innerHTML = `
-    <div class="order-details-card">
-      <div class="order-details-head">
-        <div>
-          <strong>${escapeHtml(restaurant)}</strong>
-          <div class="restaurant-inline-meta">${escapeHtml(created)}</div>
-        </div>
-        <span class="order-status-badge">${escapeHtml(status)}</span>
-      </div>
-      <div class="order-details-grid">
-        <div><span>Pagamento</span><strong>${escapeHtml(String(payment).replace(/_/g, ' '))}</strong></div>
-        <div><span>Entrega</span><strong>${escapeHtml(formatCurrency(deliveryFee))}</strong></div>
-        <div><span>Subtotal</span><strong>${escapeHtml(formatCurrency(subtotal))}</strong></div>
-        <div><span>Total</span><strong>${escapeHtml(formatCurrency(total))}</strong></div>
-      </div>
-      <div class="order-details-block">
-        <h4>Itens</h4>
-        <div class="order-detail-items">${items.map(renderOrderDetailItem).join('') || '<div class="empty">Nenhum item encontrado.</div>'}</div>
-      </div>
-      <div class="order-details-block">
-        <h4>Entrega</h4>
-        <p>${escapeHtml(addressText || order.deliveryAddressText || 'Endereço não informado.')}</p>
-      </div>
-      ${order.notes || order.observations ? `<div class="order-details-block"><h4>Observações</h4><p>${escapeHtml(order.notes || order.observations)}</p></div>` : ''}
-    </div>
-  `;
-  toggleModal('orderDetailsModal', true);
-}
-
-function renderOrderDetailItem(item) {
-  const quantity = Number(item.quantity || item.qty || 1);
-  const name = item.menuItemName || item.name || item.menuItem?.name || 'Item';
-  const notes = item.notes || item.observations || '';
-  const lineTotal = Number(item.totalPrice || item.total || item.lineTotal || 0);
-  const choices = unwrapCollection(item.selectedChoices || item.choices || item.selections || []);
-  const choicesText = choices.map((choice) => choice.choiceName || choice.name || choice.choice?.name).filter(Boolean).join(', ');
-  return `
-    <article class="order-detail-item">
-      <div class="order-detail-item-head">
-        <strong>${escapeHtml(`${quantity}x ${name}`)}</strong>
-        <span>${escapeHtml(formatCurrency(lineTotal))}</span>
-      </div>
-      ${choicesText ? `<div class="order-items-preview">${escapeHtml(choicesText)}</div>` : ''}
-      ${notes ? `<div class="order-items-preview">Obs.: ${escapeHtml(notes)}</div>` : ''}
-    </article>
-  `;
-}
-
-function formatDateTime(value) {
-  if (!value) return 'Sem data';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString('pt-BR');
+  const logged = Boolean(state.currentUser && state.accessToken);
+  el.headerGuest.classList.toggle('hidden', logged);
+  el.headerUser.classList.toggle('hidden', !logged);
+  el.headerUserName.textContent = logged ? `${state.currentUser.name || state.currentUser.email}` : '';
 }
 
 function showAuthOnly() {
   el.authSection.classList.remove('hidden');
-  el.appSection.classList.add('hidden');
+  el.dashboardSection.classList.add('hidden');
 }
 
 async function bootstrapAuthenticatedArea() {
   try {
     await loadCurrentUser();
-    await loadAddresses();
-    await loadRestaurantsByAddress();
-    openRestaurantListView();
-    fillDeliveryFields();
+    await loadStates();
+    await loadRestaurant();
+    await Promise.all([loadCatalog(), loadZones(), loadOrders()]);
     el.authSection.classList.add('hidden');
-    el.appSection.classList.remove('hidden');
+    el.dashboardSection.classList.remove('hidden');
   } catch (error) {
-    showToast(error.message || 'Erro ao carregar painel do usuário.', 'error');
+    showToast(error.message || 'Erro ao carregar painel.', 'error');
     if (error.status === 401) logout(false);
   }
 }
@@ -370,32 +181,15 @@ async function handleLogin(event) {
   try {
     const result = await apiRequest('/auth/login', { method: 'POST', body: { email: form.get('email'), password: form.get('password') } });
     applyAuth(result);
-    formEl.reset();
+    formEl?.reset?.();
     await bootstrapAuthenticatedArea();
     showToast('Login realizado com sucesso.', 'success');
   } catch (error) {
     logout(false);
-    showToast(error.message || 'Falha ao entrar.', 'error');
-  }
-}
-
-async function handleRegister(event) {
-  event.preventDefault();
-  const formEl = event.currentTarget;
-  const form = new FormData(formEl);
-  try {
-    await apiRequest('/auth/register', { method: 'POST', body: {
-      name: String(form.get('name') || '').trim(),
-      phone: String(form.get('phone') || '').trim() || undefined,
-      email: String(form.get('email') || '').trim(),
-      password: String(form.get('password') || '')
-    } });
-    formEl.reset();
-    setAuthMode('login');
-    el.loginForm?.querySelector('input[name="email"]')?.focus();
-    showToast('Cadastro realizado com sucesso. Agora é só entrar.', 'success');
-  } catch (error) {
-    showToast(error.message || 'Não foi possível cadastrar.', 'error');
+    const message = error.status === 401 || error.status === 403
+      ? 'Login feito, mas esta conta não tem acesso ao painel do restaurante.'
+      : (error.message || 'Falha ao entrar.');
+    showToast(message, 'error');
   }
 }
 
@@ -413,899 +207,977 @@ function logout(notify) {
   state.accessToken = '';
   state.refreshToken = '';
   state.currentUser = null;
-  state.addresses = [];
-  state.selectedAddressId = '';
-  state.selectedRestaurant = null;
-  state.restaurants = [];
-  state.restaurantBuckets = { available: [], closed: [], cityOnly: [] };
-  state.catalog = null;
-  state.categories = [];
-  state.cart = [];
-  state.deliveryFee = 0;
-  state.currentQuote = null;
+  state.restaurant = null;
   localStorage.removeItem(STORAGE_KEYS.accessToken);
   localStorage.removeItem(STORAGE_KEYS.refreshToken);
   localStorage.removeItem(STORAGE_KEYS.currentUser);
-  renderRestaurantSections();
-  renderCategories();
-  renderMenu();
-  renderCart();
+  localStorage.removeItem(STORAGE_KEYS.currentRestaurantId);
   updateHeader();
   showAuthOnly();
   if (notify) showToast('Sessão encerrada.', 'info');
 }
 
-async function refreshSession() {
-  const refreshed = await apiRequest('/auth/refresh', {
-    method: 'POST', retryOn401: false, body: { refreshToken: state.refreshToken }
-  });
-  applyAuth(refreshed);
-}
-
 async function loadCurrentUser() {
-  const me = await apiRequest('/auth/me', { auth: true, retryOn401: true });
-  state.currentUser = normalizeUser(me);
+  const user = await apiRequest('/auth/me', { auth: true, retryOn401: true });
+  state.currentUser = normalizeUser(user);
   localStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify(state.currentUser));
   updateHeader();
 }
 
-async function loadAddresses() {
-  const addresses = unwrapCollection(await apiRequest('/addresses/my', { auth: true, retryOn401: true }));
-  state.addresses = addresses.map(normalizeAddress);
-  if (!state.addresses.length) throw new Error('Cadastre um endereço antes de fazer pedidos.');
-  state.selectedAddressId = state.selectedAddressId && state.addresses.some((item) => item.id === state.selectedAddressId)
-    ? state.selectedAddressId
-    : (state.addresses.find((item) => item.isDefault)?.id || state.addresses[0].id);
-  renderAddressList();
-  updateHeaderAddress();
+async function refreshSession() {
+  const refreshed = await apiRequest('/auth/refresh', {
+    method: 'POST', body: { refreshToken: state.refreshToken }, retryOn401: false
+  });
+  applyAuth(refreshed);
 }
 
-async function loadRestaurantsByAddress() {
-  if (!state.selectedAddressId) return;
-  const currentAddress = state.addresses.find((item) => item.id === state.selectedAddressId);
-  if (!currentAddress) return;
+async function loadRestaurant() {
+  let owned = [];
+  let lastError = null;
 
-  const [availableRaw, allRaw] = await Promise.all([
-    apiRequest(`/restaurants/available/by-address/${state.selectedAddressId}`, { auth: true, retryOn401: true }).catch(() => []),
-    apiRequest('/restaurants', { retryOn401: false }).catch(() => [])
+  try {
+    owned = unwrapCollection(await apiRequest('/restaurants/my/owned', { auth: true, retryOn401: true }));
+  } catch (error) {
+    lastError = error;
+    if (![401, 403].includes(error.status)) throw error;
+  }
+
+  let restaurant = normalizeRestaurant(findRestaurantCandidate(owned[0] || owned));
+
+  if (!restaurant && state.currentUser?.id) {
+    const publicRestaurants = unwrapCollection(await apiRequest('/restaurants', { retryOn401: false }));
+    const matched = publicRestaurants.find((item) => {
+      const ownerId = item?.ownerId || item?.owner?.id || item?.restaurant?.ownerId || item?.restaurant?.owner?.id;
+      return ownerId === state.currentUser.id;
+    });
+    restaurant = normalizeRestaurant(findRestaurantCandidate(matched));
+  }
+
+  if (!restaurant) {
+    if (lastError && [401, 403].includes(lastError.status)) {
+      const err = new Error('Sua conta autenticou, mas não tem permissão de restaurante. Entre com uma conta RESTAURANT.');
+      err.status = lastError.status;
+      throw err;
+    }
+    throw new Error('Nenhum restaurante encontrado para esta conta.');
+  }
+
+  state.restaurant = restaurant;
+  localStorage.setItem(STORAGE_KEYS.currentRestaurantId, restaurant.id);
+  state.openingHours = await loadOpeningHours(restaurant.id);
+  renderRestaurant();
+  fillRestaurantForm();
+}
+
+
+async function loadOpeningHours(restaurantId) {
+  if (!restaurantId) return [];
+  const result = await apiRequest(`/restaurants/${restaurantId}/opening-hours`, { auth: true, retryOn401: true });
+  return normalizeOpeningHours(result?.hours || result?.openingHours || result);
+}
+
+function renderHoursForm() {
+  if (!el.hoursGrid) return;
+  const labels = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const byDay = new Map(normalizeOpeningHours(state.openingHours).map((item) => [item.dayOfWeek, item]));
+  el.hoursGrid.innerHTML = labels.map((label, day) => {
+    const current = byDay.get(day);
+    return `
+      <div class="hour-row">
+        <div class="hour-day">${label}</div>
+        <label class="hour-check">
+          <input type="checkbox" data-hour-enabled="${day}" ${current ? 'checked' : ''} />
+          <span>Atender</span>
+        </label>
+        <input type="time" data-hour-open="${day}" value="${escapeAttribute(current?.openTime || '08:00')}" ${current ? '' : 'disabled'} />
+        <span class="hour-sep">às</span>
+        <input type="time" data-hour-close="${day}" value="${escapeAttribute(current?.closeTime || '18:00')}" ${current ? '' : 'disabled'} />
+      </div>
+    `;
+  }).join('');
+
+  el.hoursGrid.querySelectorAll('[data-hour-enabled]').forEach((checkbox) => {
+    checkbox.addEventListener('change', () => {
+      const day = checkbox.dataset.hourEnabled;
+      const open = el.hoursGrid.querySelector(`[data-hour-open="${day}"]`);
+      const close = el.hoursGrid.querySelector(`[data-hour-close="${day}"]`);
+      if (open) open.disabled = !checkbox.checked;
+      if (close) close.disabled = !checkbox.checked;
+    });
+  });
+}
+
+async function handleSaveHours(event) {
+  event.preventDefault();
+  const restaurantId = getRestaurantId();
+  if (!restaurantId) return;
+  const hours = [...el.hoursGrid.querySelectorAll('[data-hour-enabled]')]
+    .filter((input) => input.checked)
+    .map((input) => {
+      const day = Number(input.dataset.hourEnabled);
+      const open = el.hoursGrid.querySelector(`[data-hour-open="${day}"]`)?.value || '';
+      const close = el.hoursGrid.querySelector(`[data-hour-close="${day}"]`)?.value || '';
+      return { dayOfWeek: day, openTime: open, closeTime: close };
+    })
+    .filter((item) => item.openTime && item.closeTime);
+
+  for (const item of hours) {
+    if (item.closeTime === item.openTime) {
+      showToast('Abertura e fechamento não podem ser iguais.', 'error');
+      return;
+    }
+  }
+
+  const normalized = normalizeOpeningHours(hours);
+  const payloadHours = normalized.map(({ dayOfWeek, openTime, closeTime }) => ({ dayOfWeek, openTime, closeTime }));
+
+  try {
+    const saved = await apiRequest(`/restaurants/${restaurantId}/opening-hours`, {
+      method: 'PATCH',
+      auth: true,
+      retryOn401: true,
+      body: { hours: payloadHours }
+    });
+    state.openingHours = normalizeOpeningHours(saved?.hours || saved?.openingHours || saved);
+    if (state.restaurant) state.restaurant.hours = state.openingHours;
+    renderRestaurant();
+    toggleModal('hoursModal', false);
+    showToast('Horários salvos na API com sucesso.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Não foi possível salvar os horários na API.', 'error');
+  }
+}
+
+function normalizeOpeningHours(items) {
+  return unwrapCollection(items).map((item) => ({
+    id: item.id || '',
+    dayOfWeek: Number(item.dayOfWeek),
+    openTime: normalizeTime(item.openTime),
+    closeTime: normalizeTime(item.closeTime)
+  })).filter((item) => Number.isInteger(item.dayOfWeek) && item.dayOfWeek >= 0 && item.dayOfWeek <= 6 && item.openTime && item.closeTime)
+    .sort((a, b) => (a.dayOfWeek - b.dayOfWeek) || a.openTime.localeCompare(b.openTime));
+}
+
+function normalizeTime(value) {
+  const raw = String(value || '').trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return '';
+  return `${match[1].padStart(2, '0')}:${match[2]}`;
+}
+
+function getRestaurantOpenInfo(hours, isActive = true) {
+  if (!isActive) return { isOpen: false, statusLabel: 'Inativo', todayLabel: 'Restaurante desativado' };
+  const normalized = normalizeOpeningHours(hours);
+  if (!normalized.length) return { isOpen: true, statusLabel: 'Aberto', todayLabel: 'Horário não informado' };
+  const now = new Date();
+  const today = normalized.filter((item) => item.dayOfWeek === now.getDay());
+  if (!today.length) return { isOpen: false, statusLabel: 'Fechado', todayLabel: 'Hoje: fechado' };
+  const nowMinutes = (now.getHours() * 60) + now.getMinutes();
+  for (const slot of today) {
+    const open = slot.openTime.split(':').map(Number);
+    const close = slot.closeTime.split(':').map(Number);
+    const openMin = open[0] * 60 + open[1];
+    const closeMin = close[0] * 60 + close[1];
+    const inside = closeMin >= openMin ? (nowMinutes >= openMin && nowMinutes < closeMin) : (nowMinutes >= openMin || nowMinutes < closeMin);
+    if (inside) return { isOpen: true, statusLabel: 'Aberto', todayLabel: `Hoje: ${slot.openTime} às ${slot.closeTime}` };
+  }
+  return { isOpen: false, statusLabel: 'Fechado', todayLabel: `Hoje: ${today[0].openTime} às ${today[0].closeTime}` };
+}
+
+async function loadCatalog() {
+  const restaurantId = getRestaurantId();
+  if (!restaurantId) return;
+  const [categoriesRes, catalogRes] = await Promise.all([
+    apiRequest(`/menu/restaurant/${restaurantId}/categories`, { auth: true, retryOn401: true }),
+    apiRequest(`/menu/restaurant/${restaurantId}/catalog?onlyAvailable=false`, { auth: true, retryOn401: true })
   ]);
+  state.categories = unwrapCollection(categoriesRes).map(normalizeCategory).filter(Boolean).sort(sortByOrder);
 
-  const availableMap = new Map(unwrapCollection(availableRaw).map((item) => [item.id, item]));
-  const sameCityRestaurants = unwrapCollection(allRaw)
-    .filter((item) => (item.cityId || item.city?.id || '') === currentAddress.cityId)
-    .map(normalizeRestaurant);
-
-  const zoneEntries = await Promise.all(sameCityRestaurants
-    .filter((item) => item.isActive)
-    .map(async (restaurant) => {
-      const zones = unwrapCollection(await apiRequest(`/restaurant-delivery-zones/public/restaurant/${restaurant.id}`, { retryOn401: false }).catch(() => []));
-      return [restaurant.id, zones];
-    }));
-  const zonesByRestaurant = new Map(zoneEntries);
-
-  state.restaurants = sameCityRestaurants.map((restaurant) => {
-    const matchingAvailable = availableMap.get(restaurant.id);
-    const zones = zonesByRestaurant.get(restaurant.id) || [];
-    const neighborhoodZone = zones.find((zone) => (zone.neighborhoodId || zone.neighborhood?.id) === currentAddress.neighborhoodId && zone.isActive !== false);
-    const previewZone = neighborhoodZone || zones.find((zone) => zone.isActive !== false) || null;
-    const deliveryFee = Number(neighborhoodZone?.deliveryFee ?? previewZone?.deliveryFee ?? 0);
-    const minTime = Number(neighborhoodZone?.minTime ?? previewZone?.minTime ?? 0);
-    const maxTime = Number(neighborhoodZone?.maxTime ?? previewZone?.maxTime ?? 0);
-    const categoryNames = unwrapCollection(restaurant.menuCategories || matchingAvailable?.menuCategories || []).map((item) => item.name).filter(Boolean);
-    const isAvailableForAddress = Boolean(matchingAvailable || neighborhoodZone);
-    return {
-      ...restaurant,
-      categoryNames,
-      deliveryFee,
-      minTime,
-      maxTime,
-      rating: Number(restaurant.rating || 5),
-      isAvailableForAddress,
-      isClosed: restaurant.isActive === false,
-      zoneCount: zones.length
-    };
-  });
-
-  state.restaurantBuckets = {
-    available: state.restaurants.filter((item) => item.isActive && item.isAvailableForAddress),
-    closed: state.restaurants.filter((item) => !item.isActive),
-    cityOnly: state.restaurants.filter((item) => item.isActive && !item.isAvailableForAddress)
-  };
-
-  const currentSelectedId = state.selectedRestaurant?.id;
-  state.selectedRestaurant = currentSelectedId
-    ? state.restaurants.find((item) => item.id === currentSelectedId) || null
-    : null;
-
-  renderRestaurantSections();
-  renderSelectedRestaurant();
-}
-
-async function loadSelectedRestaurantCatalog() {
-  if (!state.selectedRestaurant?.id) {
-    state.catalog = null;
-    state.categories = [];
-    state.deliveryFee = 0;
-    renderSelectedRestaurant();
-    renderCategories();
-    renderMenu();
-    renderCart();
-    return;
+  const rawCatalog = unwrapCollection(catalogRes);
+  if (rawCatalog.length && (rawCatalog[0]?.items || rawCatalog[0]?.menuItems)) {
+    state.menuItems = rawCatalog
+      .flatMap((category) => {
+        const categoryItems = category.items || category.menuItems || [];
+        return categoryItems.map((item) => normalizeMenuItem({ ...item, category }));
+      })
+      .filter(Boolean)
+      .sort(sortByOrder);
+  } else {
+    state.menuItems = rawCatalog.map(normalizeMenuItem).filter(Boolean).sort(sortByOrder);
   }
-
-  const catalog = await apiRequest(`/menu/restaurant/${state.selectedRestaurant.id}/catalog?onlyAvailable=true`, { retryOn401: false });
-  state.catalog = catalog;
-  state.categories = normalizeCatalogCategories(catalog);
-  state.deliveryFee = Number(state.selectedRestaurant.deliveryFee || 0);
-  renderSelectedRestaurant();
+  fillCategorySelect();
   renderCategories();
-  renderMenu();
-  renderCart();
+  renderMenuItems();
 }
 
-function renderAddressList() {
-  if (!el.addressList) return;
-  el.addressList.innerHTML = state.addresses.map((address) => `
-    <button class="address-list-item ${address.id === state.selectedAddressId ? 'active' : ''}" type="button" data-address-id="${escapeAttribute(address.id)}">
-      <strong>${escapeHtml(address.label || 'Endereço')}</strong>
-      <span>${escapeHtml(address.labelText)}</span>
-      ${address.isDefault ? '<em>Principal</em>' : ''}
-    </button>
-  `).join('');
+async function loadZones() {
+  const restaurantId = getRestaurantId();
+  if (!restaurantId) return;
+  const zones = await apiRequest(`/restaurant-delivery-zones/restaurant/${restaurantId}`, { auth: true, retryOn401: true });
+  state.deliveryZones = unwrapCollection(zones).map(normalizeZone).filter(Boolean);
+  renderZones();
 }
 
-function renderRestaurantSections() {
-  const address = state.addresses.find((item) => item.id === state.selectedAddressId);
-  const cityName = address?.city?.name || address?.cityName || 'sua cidade';
-  const neighborhoodName = address?.neighborhood?.name || address?.neighborhoodName || 'seu bairro';
-  const blocks = [
-    {
-      key: 'available',
-      title: 'Restaurantes disponíveis',
-      items: state.restaurantBuckets.available,
-      empty: 'Nenhum restaurante aberto entrega neste endereço agora.'
-    },
-    {
-      key: 'closed',
-      title: 'Estabelecimentos fechados',
-      items: state.restaurantBuckets.closed,
-      empty: ''
-    },
-    {
-      key: 'cityOnly',
-      title: `Estabelecimentos de ${cityName} que não entregam no bairro ${neighborhoodName}`,
-      items: state.restaurantBuckets.cityOnly,
-      empty: ''
-    }
-  ].filter((block) => block.items.length || block.empty);
-
-  el.restaurantSections.innerHTML = blocks.map((block) => `
-    <section class="section-block">
-      <h3 class="section-title">${escapeHtml(block.title)}</h3>
-      ${block.items.length ? `
-        <div class="restaurant-grid">
-          ${block.items.map((item) => renderRestaurantCard(item, block.key)).join('')}
-        </div>
-      ` : `<div class="empty">${escapeHtml(block.empty)}</div>`}
-    </section>
-  `).join('');
-}
-
-function renderRestaurantCard(restaurant, bucketKey) {
-  const logo = restaurant.logoUrl
-    ? `<img class="restaurant-card-logo" src="${escapeAttribute(restaurant.logoUrl)}" alt="${escapeAttribute(restaurant.name)}">`
-    : `<div class="restaurant-logo-fallback">${escapeHtml(initials(restaurant.name))}</div>`;
-  const deliveryText = restaurant.isAvailableForAddress
-    ? (restaurant.deliveryFee > 0 ? formatCurrency(restaurant.deliveryFee) : '<span class="delivery-free">GRÁTIS</span>')
-    : 'Não entrega nesse bairro';
-  const timeText = restaurant.minTime && restaurant.maxTime ? `${restaurant.minTime}-${restaurant.maxTime}min` : '60-90min';
-  const categories = restaurant.categoryNames?.length ? restaurant.categoryNames.slice(0, 3).join(', ') : (restaurant.description || 'Restaurante');
-  const promo = bucketKey === 'cityOnly'
-    ? '<div class="muted-red">Disponível na sua cidade, mas fora da zona deste bairro.</div>'
-    : bucketKey === 'closed'
-      ? '<div class="muted-red">No momento este estabelecimento está fechado.</div>'
-      : '';
-
-  return `
-    <article class="restaurant-card ${state.selectedRestaurant?.id === restaurant.id ? 'selected' : ''} ${bucketKey !== 'available' ? 'is-muted' : ''}" data-restaurant-id="${escapeAttribute(restaurant.id)}">
-      ${logo}
-      <div class="restaurant-card-body">
-        <div class="restaurant-card-head">
-          <h4>${escapeHtml(restaurant.name)}</h4>
-          <span class="rating-mini">${escapeHtml(String(restaurant.rating || 5))} ★</span>
-        </div>
-        <div class="restaurant-card-sub">${escapeHtml(categories)} • $</div>
-        <div class="restaurant-inline-meta">${deliveryText} • ${escapeHtml(timeText)}</div>
-        ${promo}
-      </div>
-    </article>
-  `;
-}
-
-function renderSelectedRestaurant() {
-  const restaurant = state.selectedRestaurant;
-  const hasRestaurant = Boolean(restaurant) && state.currentView === 'detail';
-  el.selectedRestaurantPage.classList.toggle('hidden', !hasRestaurant);
-  el.selectedRestaurantPanel.classList.toggle('hidden', !hasRestaurant);
-  el.categoriesPanel.classList.toggle('hidden', !hasRestaurant);
-  el.menuPanel.classList.toggle('hidden', !hasRestaurant);
-  el.restaurantSections.classList.toggle('hidden', hasRestaurant);
-  if (!restaurant || state.currentView !== 'detail') return;
-
-  el.restaurantTitle.textContent = restaurant.name || 'Restaurante';
-  el.restaurantSubtitle.textContent = restaurant.categoryNames?.length
-    ? `${restaurant.categoryNames.join(', ')} • $`
-    : (restaurant.description || 'Cardápio do restaurante');
-  el.restaurantRatingBadge.textContent = `${restaurant.rating || 5} ★`;
-  el.restaurantFeeMeta.innerHTML = restaurant.isAvailableForAddress
-    ? (restaurant.deliveryFee > 0 ? formatCurrency(restaurant.deliveryFee) : '<span class="delivery-free">GRÁTIS</span>')
-    : 'Não entrega no seu bairro';
-  el.restaurantTimeMeta.textContent = restaurant.minTime && restaurant.maxTime ? `${restaurant.minTime}-${restaurant.maxTime}min` : '60-90min';
-  el.restaurantStatusMeta.textContent = restaurant.isActive ? 'Aberto' : 'Fechado';
-
-  if (restaurant.logoUrl) {
-    el.restaurantLogo.src = restaurant.logoUrl;
-    el.restaurantLogo.classList.remove('hidden');
-    el.restaurantLogoFallback.classList.add('hidden');
-  } else {
-    el.restaurantLogo.classList.add('hidden');
-    el.restaurantLogoFallback.classList.remove('hidden');
-    el.restaurantLogoFallback.textContent = initials(restaurant.name || 'MD');
-  }
-}
-
-function renderCategories() {
-  if (!state.categories.length) {
-    el.categoryTabs.innerHTML = '<div class="empty">Nenhuma categoria disponível.</div>';
-    return;
-  }
-  el.categoryTabs.innerHTML = state.categories.map((category, index) => `
-    <button class="category-tab ${index === 0 ? 'active' : ''}" type="button" data-category-tab="${escapeAttribute(category.id)}">
-      ${escapeHtml(category.name)}
-    </button>
-  `).join('');
-}
-
-function renderMenu() {
-  if (!state.categories.length) {
-    el.menuSections.innerHTML = '';
-    el.menuEmpty.classList.remove('hidden');
-    return;
-  }
-  el.menuEmpty.classList.add('hidden');
-  el.menuSections.innerHTML = state.categories.map((category) => `
-    <section class="menu-section" id="category-${escapeAttribute(category.id)}" data-category-section="${escapeAttribute(category.id)}">
-      <div class="menu-section-head">
-        <div>
-          <h3>${escapeHtml(category.name)}</h3>
-          ${category.description ? `<p>${escapeHtml(category.description)}</p>` : ''}
-        </div>
-      </div>
-      <div class="menu-grid">
-        ${category.menuItems.length ? category.menuItems.map(renderItemCard).join('') : '<div class="empty">Nenhum item nesta categoria.</div>'}
-      </div>
-    </section>
-  `).join('');
-}
-
-function renderItemCard(item) {
-  const image = item.imageUrl
-    ? `<div class="item-card-cover"><img src="${escapeAttribute(item.imageUrl)}" alt="${escapeAttribute(item.name)}"></div>`
-    : `<div class="item-card-cover"><div class="item-cover-fallback">${escapeHtml(initials(item.name))}</div></div>`;
-  return `
-    <article class="item-card">
-      ${image}
-      <div class="item-card-body">
-        <h4>${escapeHtml(item.name)}</h4>
-        <p class="muted">${escapeHtml(item.description || '')}</p>
-        <div class="tag-row">
-          ${item.options.length ? `<span class="meta-pill">${item.options.length} grupo(s)</span>` : ''}
-          ${item.isFeatured ? '<span class="tag">Destaque</span>' : ''}
-        </div>
-      </div>
-      <div class="item-card-actions">
-        <div class="item-price">${formatCurrency(item.price)}</div>
-        <button class="primary-btn" type="button" data-add-item="${escapeAttribute(item.id)}">Escolher</button>
-      </div>
-    </article>
-  `;
-}
-
-function handleRestaurantCardClick(event) {
-  const addressButton = event.target.closest('[data-address-id]');
-  if (addressButton) {
-    handleAddressChange(addressButton.dataset.addressId).catch((error) => showToast(error.message || 'Não foi possível trocar o endereço.', 'error'));
-    return;
-  }
-  const card = event.target.closest('[data-restaurant-id]');
-  if (!card) return;
-  const restaurant = state.restaurants.find((item) => item.id === card.dataset.restaurantId);
-  if (!restaurant) return;
-  if (state.selectedRestaurant?.id && state.selectedRestaurant.id !== restaurant.id) {
-    state.cart = [];
-    state.currentQuote = null;
-  }
-  state.selectedRestaurant = restaurant;
-  openRestaurantDetailView();
-  loadSelectedRestaurantCatalog().catch((error) => {
-    showToast(error.message || 'Não foi possível abrir o restaurante.', 'error');
-  });
-  renderRestaurantSections();
-}
-
-function handleCategoryTabClick(event) {
-  const button = event.target.closest('[data-category-tab]');
-  if (!button) return;
-  [...el.categoryTabs.querySelectorAll('.category-tab')].forEach((tab) => tab.classList.remove('active'));
-  button.classList.add('active');
-  document.getElementById(`category-${button.dataset.categoryTab}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function handleMenuClick(event) {
-  const button = event.target.closest('[data-add-item]');
-  if (!button) return;
-  const item = findMenuItemById(button.dataset.addItem);
-  if (!item) return;
-  if (!state.selectedRestaurant?.isActive) {
-    showToast('Este restaurante está fechado no momento.', 'info');
-    return;
-  }
-  if (!state.selectedRestaurant?.isAvailableForAddress) {
-    showToast('Este restaurante não entrega no endereço selecionado.', 'info');
-    return;
-  }
-  openItemModal(item);
-}
-
-function openItemModal(item) {
-  state.currentItem = structuredClone(item);
-  el.itemModalTitle.textContent = item.name;
-  el.itemModalSubtitle.textContent = item.description || 'Escolha os adicionais e a quantidade.';
-  el.itemBasePrice.textContent = formatCurrency(item.price);
-  el.itemSummaryBase.textContent = formatCurrency(item.price);
-  el.itemQuantityInput.value = '1';
-  el.itemNotesInput.value = '';
-  el.itemNotesInput.disabled = !item.allowsItemNotes;
-  el.itemNotesInput.placeholder = item.allowsItemNotes ? '' : 'Este item não aceita observações';
-  el.itemBadges.innerHTML = `${item.isFeatured ? '<span class="tag">Destaque</span>' : ''}${item.maxPerOrder ? `<span class="meta-pill">Máx. ${item.maxPerOrder}</span>` : ''}`;
-
-  if (item.imageUrl) {
-    el.itemModalImage.src = item.imageUrl;
-    el.itemModalImage.classList.remove('hidden');
-    el.itemModalImageFallback.classList.add('hidden');
-  } else {
-    el.itemModalImage.classList.add('hidden');
-    el.itemModalImageFallback.classList.remove('hidden');
-    el.itemModalImageFallback.textContent = initials(item.name);
-  }
-
-  el.optionGroupsRoot.innerHTML = item.options.map(renderOptionGroup).join('');
-  updateCurrentItemSummary();
-  toggleModal('itemModal', true);
-}
-
-function renderOptionGroup(option) {
-  const min = option.minSelect ?? (option.required ? 1 : 0);
-  const max = option.maxSelect;
-  const multiple = (max ?? 2) > 1;
-  return `
-    <section class="option-group" data-option-id="${escapeAttribute(option.id)}" data-min="${min}" data-max="${max ?? ''}">
-      <div class="option-group-head">
-        <div>
-          <strong>${escapeHtml(option.name)}</strong>
-          <div class="muted">${escapeHtml(buildOptionHint(option))}</div>
-        </div>
-      </div>
-      <div class="option-choices">
-        ${option.choices.map((choice) => `
-          <label class="choice-row">
-            <div class="choice-main">
-              <input
-                type="${multiple ? 'checkbox' : 'radio'}"
-                name="option-${escapeAttribute(option.id)}"
-                value="${escapeAttribute(choice.id)}"
-                data-option-id="${escapeAttribute(option.id)}"
-                data-choice-id="${escapeAttribute(choice.id)}"
-                data-choice-price="${Number(choice.price || 0)}"
-              />
-              <div>
-                <div><strong>${escapeHtml(choice.name)}</strong></div>
-                <div class="muted">${escapeHtml(choice.description || '')}</div>
-              </div>
-            </div>
-            <div class="choice-price">${Number(choice.price || 0) > 0 ? `+ ${formatCurrency(choice.price)}` : 'Grátis'}</div>
-          </label>
-        `).join('')}
-      </div>
-    </section>
-  `;
-}
-
-function updateCurrentItemSummary() {
-  if (!state.currentItem) return;
-  enforceOptionLimits();
-  const selectedChoices = collectCurrentSelections();
-  const extras = selectedChoices.reduce((sum, item) => sum + Number(item.price || 0), 0);
-  const quantity = Math.max(1, Number(el.itemQuantityInput.value || 1));
-  const total = (Number(state.currentItem.price || 0) + extras) * quantity;
-  el.itemSummaryExtras.textContent = formatCurrency(extras);
-  el.itemSummaryTotal.textContent = formatCurrency(total);
-}
-
-function enforceOptionLimits() {
-  el.optionGroupsRoot.querySelectorAll('[data-option-id][data-max]').forEach((group) => {
-    const max = Number(group.dataset.max || 0);
-    if (!max) return;
-    const checked = [...group.querySelectorAll('input:checked')];
-    if (checked.length <= max) return;
-    const lastChecked = checked[checked.length - 1];
-    lastChecked.checked = false;
-    showToast(`Este grupo permite no máximo ${max} seleção(ões).`, 'info');
-  });
-}
-
-function collectCurrentSelections() {
-  return [...el.optionGroupsRoot.querySelectorAll('input:checked')].map((input) => ({
-    optionId: input.dataset.optionId,
-    choiceId: input.dataset.choiceId,
-    price: Number(input.dataset.choicePrice || 0)
-  }));
-}
-
-function validateCurrentItemSelections() {
-  const groups = [...el.optionGroupsRoot.querySelectorAll('[data-option-id]')];
-  for (const group of groups) {
-    const min = Number(group.dataset.min || 0);
-    const max = group.dataset.max ? Number(group.dataset.max) : null;
-    const checked = group.querySelectorAll('input:checked').length;
-    const name = group.querySelector('.option-group-head strong')?.textContent || 'Grupo';
-    if (checked < min) {
-      showToast(`O grupo "${name}" exige no mínimo ${min} seleção(ões).`, 'error');
-      return false;
-    }
-    if (max !== null && checked > max) {
-      showToast(`O grupo "${name}" permite no máximo ${max} seleção(ões).`, 'error');
-      return false;
-    }
-  }
-  if (state.currentItem.maxPerOrder && Number(el.itemQuantityInput.value || 1) > state.currentItem.maxPerOrder) {
-    showToast(`Este item aceita no máximo ${state.currentItem.maxPerOrder} unidade(s) por pedido.`, 'error');
-    return false;
-  }
-  return true;
-}
-
-function addCurrentItemToCart() {
-  if (!state.currentItem) return;
-  if (!state.selectedRestaurant?.isActive) {
-    showToast('Este restaurante está fechado.', 'error');
-    return;
-  }
-  if (!state.selectedRestaurant?.isAvailableForAddress) {
-    showToast('Este restaurante não entrega no endereço selecionado.', 'error');
-    return;
-  }
-  if (!validateCurrentItemSelections()) return;
-
-  const quantity = Math.max(1, Number(el.itemQuantityInput.value || 1));
-  const selectedChoices = collectCurrentSelections().map((selection) => {
-    const option = state.currentItem.options.find((item) => item.id === selection.optionId);
-    const choice = option?.choices.find((item) => item.id === selection.choiceId);
-    return {
-      optionId: selection.optionId,
-      optionName: option?.name || '',
-      choiceId: selection.choiceId,
-      choiceName: choice?.name || '',
-      price: Number(choice?.price || 0)
-    };
-  });
-  const extras = selectedChoices.reduce((sum, item) => sum + Number(item.price || 0), 0);
-  state.cart.push({
-    uid: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-    menuItemId: state.currentItem.id,
-    name: state.currentItem.name,
-    basePrice: Number(state.currentItem.price || 0),
-    quantity,
-    notes: state.currentItem.allowsItemNotes ? el.itemNotesInput.value.trim() : '',
-    selectedChoices,
-    totalUnitPrice: Number(state.currentItem.price || 0) + extras
-  });
-  renderCart();
-  toggleModal('itemModal', false);
-  showToast('Item adicionado ao carrinho.', 'success');
-}
-
-function renderCart() {
-  el.cartColumn.classList.toggle('hidden', !state.cart.length || state.currentView !== 'detail');
-  if (!state.cart.length) {
-    el.cartItems.innerHTML = '';
-    el.cartEmpty.classList.remove('hidden');
-  } else {
-    el.cartEmpty.classList.add('hidden');
-    el.cartItems.innerHTML = state.cart.map((item) => `
-      <article class="cart-item">
-        <div class="cart-item-head">
-          <strong>${escapeHtml(item.quantity)}x ${escapeHtml(item.name)}</strong>
-          <strong>${formatCurrency(item.totalUnitPrice * item.quantity)}</strong>
-        </div>
-        <div class="muted">Base ${formatCurrency(item.basePrice)}${item.notes ? ` • Obs.: ${escapeHtml(item.notes)}` : ''}</div>
-        ${item.selectedChoices.length ? `
-          <div class="cart-item-choices">
-            ${item.selectedChoices.map((choice) => `<span>${escapeHtml(choice.optionName)}: ${escapeHtml(choice.choiceName)}${Number(choice.price || 0) ? ` (+ ${formatCurrency(choice.price)})` : ''}</span>`).join('')}
-          </div>
-        ` : ''}
-        <div class="cart-actions">
-          <button class="text-btn" type="button" data-remove-cart-item="${escapeAttribute(item.uid)}">Remover</button>
-        </div>
-      </article>
-    `).join('');
-  }
-
-  const subtotal = state.cart.reduce((sum, item) => sum + (item.totalUnitPrice * item.quantity), 0);
-  const total = subtotal + Number(state.deliveryFee || 0);
-  el.subtotalValue.textContent = formatCurrency(subtotal);
-  el.deliveryFeeValue.textContent = formatCurrency(state.deliveryFee || 0);
-  el.totalValue.textContent = formatCurrency(total);
-}
-
-function handleCartActions(event) {
-  const button = event.target.closest('[data-remove-cart-item]');
-  if (!button) return;
-  state.cart = state.cart.filter((item) => item.uid !== button.dataset.removeCartItem);
-  renderCart();
-}
-
-async function quoteOrder() {
-  try {
-    const payload = buildOrderPayload();
-    const quote = await apiRequest('/orders/quote', { method: 'POST', auth: true, retryOn401: true, body: payload });
-    state.currentQuote = quote;
-    const total = Number(quote.total ?? quote.summary?.total ?? 0);
-    const deliveryFee = Number((quote.deliveryFee ?? quote.summary?.deliveryFee ?? state.deliveryFee) || 0);
-    state.deliveryFee = deliveryFee;
-    renderCart();
-    if (total) el.totalValue.textContent = formatCurrency(total);
-    showToast('Pedido calculado com sucesso.', 'success');
-  } catch (error) {
-    showToast(error.message || 'Não foi possível calcular o pedido.', 'error');
-  }
-}
-
-async function submitOrder() {
-  try {
-    const payload = buildOrderPayload();
-    const result = await apiRequest('/orders', { method: 'POST', auth: true, retryOn401: true, body: payload });
-    state.cart = [];
-    state.currentQuote = result;
-    renderCart();
-    showToast('Pedido enviado com sucesso.', 'success');
-  } catch (error) {
-    showToast(error.message || 'Não foi possível finalizar o pedido.', 'error');
-  }
-}
-
-function buildOrderPayload() {
-  if (!state.selectedRestaurant?.id) throw new Error('Selecione um restaurante.');
-  if (!state.selectedRestaurant?.isActive) throw new Error('O restaurante selecionado está fechado.');
-  if (!state.selectedRestaurant?.isAvailableForAddress) throw new Error('O restaurante selecionado não entrega no seu bairro.');
-  if (!state.selectedAddressId) throw new Error('Selecione um endereço.');
-  if (!state.cart.length) throw new Error('Adicione pelo menos um item ao carrinho.');
-
-  const paymentMethod = el.paymentMethodSelect.value;
-  const payload = {
-    restaurantId: state.selectedRestaurant.id,
-    userAddressId: state.selectedAddressId,
-    paymentMethod,
-    notes: el.orderNotesInput.value.trim() || undefined,
-    cashChangeFor: paymentMethod === 'CASH' && el.cashChangeInput.value ? Number(el.cashChangeInput.value) : undefined,
-    deliveryName: el.deliveryNameInput.value.trim() || state.currentUser?.name || '',
-    deliveryPhone: el.deliveryPhoneInput.value.trim() || state.currentUser?.phone || '',
-    items: state.cart.map((item) => ({
-      menuItemId: item.menuItemId,
-      quantity: item.quantity,
-      notes: item.notes || undefined,
-      selectedChoices: item.selectedChoices.map((choice) => ({ optionId: choice.optionId, choiceId: choice.choiceId }))
-    }))
-  };
-
-  if (!payload.deliveryName) throw new Error('Informe o nome para entrega.');
-  if (!payload.deliveryPhone) throw new Error('Informe o telefone para entrega.');
-
-  return payload;
-}
-
-function fillDeliveryFields() {
-  if (!el.deliveryNameInput.value) el.deliveryNameInput.value = state.currentUser?.name || '';
-  if (!el.deliveryPhoneInput.value) el.deliveryPhoneInput.value = state.currentUser?.phone || '';
-}
-
-function toggleCashChange() {
-  const isCash = el.paymentMethodSelect.value === 'CASH';
-  el.cashChangeWrap.classList.toggle('hidden', !isCash);
-}
-
-async function handleAddressChange(addressId) {
-  state.selectedAddressId = addressId;
-  state.cart = [];
-  state.selectedRestaurant = null;
-  renderCart();
-  updateHeaderAddress();
-  toggleModal('addressModal', false);
-  await loadRestaurantsByAddress();
-  openRestaurantListView();
-}
-
-function openRestaurantListView(clearCart=false) {
-  state.currentView = 'list';
-  if (clearCart) {
-    state.cart = [];
-    state.currentQuote = null;
-  }
-  renderSelectedRestaurant();
-  renderCart();
-}
-
-function openRestaurantDetailView() {
-  state.currentView = 'detail';
-  renderSelectedRestaurant();
-  renderCart();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-async function openAddressModal() {
-  toggleModal('addressModal', true);
-  renderAddressList();
-}
-
-async function openAddressFormModal() {
-  toggleModal('addressFormModal', true);
-  if (!state.states.length) {
-    await loadStates().catch(() => {});
-  }
+async function loadOrders() {
+  const restaurantId = getRestaurantId();
+  if (!restaurantId) return;
+  const orders = await apiRequest(`/orders/restaurant/${restaurantId}`, { auth: true, retryOn401: true });
+  state.orders = unwrapCollection(orders).map(normalizeOrder).filter(Boolean);
+  renderOrders();
 }
 
 async function loadStates() {
-  state.states = unwrapCollection(await apiRequest('/locations/states', { retryOn401: false }));
-  el.stateSelect.innerHTML = '<option value="">Selecione</option>' + state.states.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}${item.code ? ` - ${escapeHtml(item.code)}` : ''}</option>`).join('');
-  const current = state.addresses.find((item) => item.id === state.selectedAddressId);
-  if (current?.city?.state?.id) {
-    el.stateSelect.value = current.city.state.id;
-    await handleStateChange(false);
-    if (current.cityId) {
-      el.citySelect.value = current.cityId;
-      await handleCityChange(false);
-      if (current.neighborhoodId) el.neighborhoodSelect.value = current.neighborhoodId;
-    }
+  state.states = unwrapCollection(await apiRequest('/locations/states')).map((item) => ({ id: item.id, name: item.name, code: item.code }));
+  const baseOptions = [{ value: '', label: 'Selecione' }, ...state.states.map((item) => ({ value: item.id, label: `${item.name} (${item.code})` }))];
+  fillSelect(el.restaurantStateSelect, baseOptions);
+  fillSelect(el.zoneStateSelect, baseOptions);
+}
+
+async function loadCitiesByState(stateId) {
+  if (!stateId) return [];
+  if (!state.citiesByState[stateId]) {
+    state.citiesByState[stateId] = unwrapCollection(await apiRequest(`/locations/states/${stateId}/cities`));
   }
+  return state.citiesByState[stateId];
 }
 
-async function handleStateChange(clear=true) {
-  const stateId = el.stateSelect.value;
-  state.cities = stateId ? unwrapCollection(await apiRequest(`/locations/states/${stateId}/cities`, { retryOn401: false })) : [];
-  el.citySelect.innerHTML = '<option value="">Selecione</option>' + state.cities.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join('');
-  el.neighborhoodSelect.innerHTML = '<option value="">Selecione</option>';
-  if (clear) el.citySelect.value = '';
-}
-
-async function handleCityChange(clear=true) {
-  const cityId = el.citySelect.value;
-  state.neighborhoods = cityId ? unwrapCollection(await apiRequest(`/locations/cities/${cityId}/neighborhoods`, { retryOn401: false })) : [];
-  el.neighborhoodSelect.innerHTML = '<option value="">Selecione</option>' + state.neighborhoods.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.name)}</option>`).join('');
-  if (clear) el.neighborhoodSelect.value = '';
-}
-
-async function saveAddress() {
-  try {
-    const payload = {
-      label: el.addressLabelInput.value.trim() || undefined,
-      street: el.addressStreetInput.value.trim(),
-      number: el.addressNumberInput.value.trim(),
-      complement: el.addressComplementInput.value.trim() || undefined,
-      reference: el.addressReferenceInput.value.trim() || undefined,
-      zipCode: el.addressZipInput.value.trim(),
-      cityId: el.citySelect.value,
-      neighborhoodId: el.neighborhoodSelect.value,
-      isDefault: el.addressDefaultInput.checked
-    };
-    if (!payload.street || !payload.number || !payload.zipCode || !payload.cityId || !payload.neighborhoodId) {
-      throw new Error('Preencha os campos do novo endereço.');
-    }
-    await apiRequest('/addresses', { method: 'POST', auth: true, retryOn401: true, body: payload });
-    [el.addressLabelInput, el.addressZipInput, el.addressStreetInput, el.addressNumberInput, el.addressComplementInput, el.addressReferenceInput].forEach((input) => input.value = '');
-    el.addressDefaultInput.checked = true;
-    await loadAddresses();
-    await loadRestaurantsByAddress();
-    toggleModal('addressFormModal', false);
-    toggleModal('addressModal', false);
-    [el.stateSelect, el.citySelect, el.neighborhoodSelect].forEach((input) => input.value = '');
-    showToast('Endereço salvo com sucesso.', 'success');
-  } catch (error) {
-    showToast(error.message || 'Não foi possível salvar o endereço.', 'error');
+async function loadNeighborhoodsByCity(cityId) {
+  if (!cityId) return [];
+  if (!state.neighborhoodsByCity[cityId]) {
+    state.neighborhoodsByCity[cityId] = unwrapCollection(await apiRequest(`/locations/cities/${cityId}/neighborhoods`));
   }
+  return state.neighborhoodsByCity[cityId];
 }
 
-function normalizeCatalogCategories(payload) {
-  const source = unwrapData(payload) || payload || {};
-  const categories = Array.isArray(source.categories) ? source.categories : [];
-  return categories.map((category) => ({
+async function handleRestaurantStateChange() {
+  const stateId = el.restaurantStateSelect.value;
+  const cities = await loadCitiesByState(stateId);
+  fillSelect(el.restaurantCitySelect, [{ value: '', label: 'Selecione' }, ...cities.map((item) => ({ value: item.id, label: item.name }))]);
+}
+
+async function handleZoneStateChange() {
+  const stateId = el.zoneStateSelect.value;
+  const cities = await loadCitiesByState(stateId);
+  fillSelect(el.zoneCitySelect, [{ value: '', label: 'Selecione' }, ...cities.map((item) => ({ value: item.id, label: item.name }))]);
+  fillSelect(el.zoneNeighborhoodSelect, [{ value: '', label: 'Selecione' }]);
+}
+
+async function handleZoneCityChange() {
+  const cityId = el.zoneCitySelect.value;
+  const neighborhoods = await loadNeighborhoodsByCity(cityId);
+  fillSelect(el.zoneNeighborhoodSelect, [{ value: '', label: 'Selecione' }, ...neighborhoods.map((item) => ({ value: item.id, label: item.name }))]);
+}
+
+function renderRestaurant() {
+  const restaurant = state.restaurant;
+  if (!restaurant) return;
+  el.restaurantTitle.textContent = restaurant.name || 'Restaurante';
+  const openInfo = getRestaurantOpenInfo(state.openingHours, restaurant.isActive);
+  el.restaurantSubtitle.textContent = [restaurant.description, restaurant.phone, restaurant.address, openInfo.todayLabel].filter(Boolean).join(' • ');
+  el.restaurantStatusBadge.textContent = openInfo.statusLabel;
+  el.restaurantStatusBadge.className = `badge ${openInfo.isOpen ? 'success-badge' : 'danger-badge'}`;
+  el.restaurantCityBadge.textContent = restaurant.cityName || 'Cidade não informada';
+  const logo = restaurant.logoUrl || '';
+  el.restaurantLogo.classList.toggle('hidden', !logo);
+  el.restaurantLogoFallback.classList.toggle('hidden', Boolean(logo));
+  if (logo) el.restaurantLogo.src = logo;
+}
+
+function fillRestaurantForm() {
+  const restaurant = state.restaurant;
+  if (!restaurant) return;
+  el.restaurantName.value = restaurant.name || '';
+  el.restaurantPhone.value = restaurant.phone || '';
+  el.restaurantDescription.value = restaurant.description || '';
+  el.restaurantLogoUrl.value = restaurant.logoUrl || '';
+  el.restaurantAddress.value = restaurant.address || '';
+  el.restaurantMinOrder.value = restaurant.minOrder ?? '';
+  el.restaurantIsActive.checked = Boolean(restaurant.isActive);
+
+  const stateId = restaurant.stateId || restaurant.city?.state?.id || '';
+  el.restaurantStateSelect.value = stateId;
+  handleRestaurantStateChange().then(() => {
+    el.restaurantCitySelect.value = restaurant.cityId || '';
+  });
+}
+
+function fillCategorySelect() {
+  fillSelect(el.menuCategoryId, [{ value: '', label: 'Sem categoria' }, ...state.categories.map((item) => ({ value: item.id, label: item.name }))]);
+}
+
+function renderCategories() {
+  el.categoryList.innerHTML = '';
+  el.categoryEmptyState.classList.toggle('hidden', state.categories.length > 0);
+  state.categories.forEach((category) => {
+    const count = state.menuItems.filter((item) => item.categoryId === category.id).length;
+    const card = document.createElement('div');
+    card.className = 'list-card category-card';
+    card.innerHTML = `
+      <div class="list-card-top">
+        <div>
+          <h4>${escapeHtml(category.name)}</h4>
+          <p>${escapeHtml(category.description || 'Sem descrição')}</p>
+          <div class="meta-row">
+            <span class="tag">Ordem ${category.sortOrder || 0}</span>
+            <span class="tag">${count} item(ns)</span>
+            <span class="tag ${category.isActive ? 'tag-ok' : 'tag-off'}">${category.isActive ? 'Ativa' : 'Inativa'}</span>
+          </div>
+        </div>
+        <button class="ghost-btn small" type="button" data-edit-category="${category.id}">Editar</button>
+      </div>`;
+    el.categoryList.appendChild(card);
+  });
+}
+
+function renderMenuItems() {
+  el.menuList.innerHTML = '';
+  const sortedCategories = [...state.categories].sort(sortByOrder);
+  const uncategorized = state.menuItems.filter((item) => !item.categoryId).sort(sortByOrder);
+  const groups = sortedCategories.map((category) => ({
     id: category.id,
-    name: category.name || 'Categoria',
-    description: category.description || '',
-    sortOrder: Number(category.sortOrder ?? 0),
-    menuItems: unwrapCollection(category.menuItems).map(normalizeMenuItem)
-  })).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+    name: category.name,
+    description: category.description,
+    sortOrder: category.sortOrder,
+    items: state.menuItems.filter((item) => item.categoryId === category.id).sort(sortByOrder)
+  })).filter((group) => group.items.length > 0);
+  if (uncategorized.length) groups.push({ id: '', name: 'Sem categoria', description: 'Itens sem categoria definida', sortOrder: 999999, items: uncategorized });
+  groups.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
+
+  el.menuEmptyState.classList.toggle('hidden', groups.length > 0);
+  groups.forEach((group) => {
+    const section = document.createElement('section');
+    section.className = 'menu-category-section customer-style-section';
+    const description = group.description ? `<p class="muted small">${escapeHtml(group.description)}</p>` : '';
+    section.innerHTML = `
+      <div class="customer-category-header">
+        <div>
+          <h4>${escapeHtml(group.name)}</h4>
+          ${description}
+        </div>
+      </div>
+      <div class="client-menu-list vertical-stack"></div>
+    `;
+    const list = section.querySelector('.client-menu-list');
+
+    group.items.forEach((item) => {
+      const itemCard = document.createElement('article');
+      itemCard.className = 'client-menu-item customer-line-item';
+      const image = item.imageUrl ? `<img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" />` : `<div class="client-menu-image-fallback">${escapeHtml((item.name || 'Item').slice(0, 2).toUpperCase())}</div>`;
+      const groupsMeta = (item.options || []).length ? `<div class="meta-row wrap">${item.options.map((group) => `<span class="tag">${escapeHtml(group.name)} · ${group.minSelect ?? 0} a ${group.maxSelect ?? '-'} · ${group.choices?.length || 0} opções</span>`).join('')}</div>` : '';
+      itemCard.innerHTML = `
+        <div class="customer-line-main">
+          <div class="client-menu-image left-thumb">${image}</div>
+          <div class="customer-line-content">
+            <h5>${escapeHtml(item.name)}</h5>
+            <div class="small">${escapeHtml(item.description || 'Sem descrição')}</div>
+            <div class="meta-row wrap">
+              <span class="tag ${item.isAvailable ? 'tag-ok' : 'tag-off'}">${item.isAvailable ? 'Disponível' : 'Indisponível'}</span>
+              <span class="tag">Ordem ${item.sortOrder || 0}</span>
+              ${item.isFeatured ? '<span class="tag">Destaque</span>' : ''}
+              ${item.promotionalText ? `<span class="tag tag-ok">${escapeHtml(item.promotionalText)}</span>` : ''}
+            </div>
+            ${groupsMeta}
+          </div>
+          <div class="customer-line-right">
+            <div class="menu-item-price">${formatMoney(item.price)}</div>
+            <button class="ghost-btn small" type="button" data-edit-menu-item="${item.id}">Editar item</button>
+          </div>
+        </div>
+      `;
+      list.appendChild(itemCard);
+    });
+
+    el.menuList.appendChild(section);
+  });
 }
 
-function normalizeMenuItem(item) {
-  return {
-    id: item.id,
-    name: item.name || 'Item',
-    description: item.description || '',
-    imageUrl: item.imageUrl || '',
-    price: Number(item.price || 0),
-    isFeatured: Boolean(item.isFeatured),
-    allowsItemNotes: item.allowsItemNotes !== false,
-    maxPerOrder: item.maxPerOrder ?? null,
-    options: unwrapCollection(item.options).map((option) => ({
-      id: option.id,
-      name: option.name || 'Opção',
-      required: Boolean(option.required),
-      minSelect: option.minSelect ?? null,
-      maxSelect: option.maxSelect ?? null,
-      choices: unwrapCollection(option.choices).map((choice) => ({
-        id: choice.id,
-        name: choice.name || 'Escolha',
-        description: choice.description || '',
-        price: Number(choice.price || 0)
-      }))
-    }))
-  };
+function renderZones() {
+  el.zonesList.innerHTML = '';
+  el.zonesEmptyState.classList.toggle('hidden', state.deliveryZones.length > 0);
+  state.deliveryZones.forEach((zone) => {
+    const card = document.createElement('div');
+    card.className = 'list-card';
+    card.innerHTML = `
+      <div class="list-card-top">
+        <div>
+          <h4>${escapeHtml(zone.neighborhoodName || 'Bairro')}</h4>
+          <p>${escapeHtml(zone.cityName || '')}</p>
+        </div>
+        <button class="ghost-btn small" type="button" data-edit-zone="${zone.id}">Editar</button>
+      </div>
+      <div class="meta-row">
+        <span class="tag">Taxa ${formatMoney(zone.deliveryFee)}</span>
+        <span class="tag">${zone.minTime} a ${zone.maxTime} min</span>
+        <span class="tag ${zone.isActive ? 'tag-ok' : 'tag-off'}">${zone.isActive ? 'Ativa' : 'Inativa'}</span>
+      </div>`;
+    el.zonesList.appendChild(card);
+  });
 }
 
-function normalizeRestaurant(item) {
-  return {
-    ...item,
-    id: item.id,
-    name: item.name || 'Restaurante',
-    description: item.description || '',
-    logoUrl: item.logoUrl || '',
-    address: item.address || '',
-    isActive: item.isActive !== false,
-    cityId: item.cityId || item.city?.id || '',
-    cityLabel: [item.city?.name, item.city?.state?.code].filter(Boolean).join(' - '),
-    menuCategories: unwrapCollection(item.menuCategories || item.categories || [])
-  };
+function renderOrders() {
+  const orders = state.orders.filter((item) => state.orderFilter === 'ALL' || item.status === state.orderFilter);
+  el.ordersList.innerHTML = '';
+  el.ordersEmptyState.classList.toggle('hidden', orders.length > 0);
+
+  orders.forEach((order) => {
+    const availableStatus = ORDER_STATUS_FLOW[order.status] || [];
+    const itemsHtml = (order.items || []).map((item) => {
+      const selections = (item.selections || []).map((selection) => `${escapeHtml(selection.optionName)}: ${escapeHtml(selection.choiceName)}${selection.price ? ` (+${formatMoney(selection.price)})` : ''}`).join('<br>');
+      return `<li><strong>${item.quantity}x ${escapeHtml(item.name)}</strong> — ${formatMoney(item.totalPrice)}${selections ? `<div class="small muted">${selections}</div>` : ''}${item.notes ? `<div class="small muted">Obs.: ${escapeHtml(item.notes)}</div>` : ''}</li>`;
+    }).join('');
+
+    const buttons = availableStatus.map((status) => `<button class="ghost-btn small" type="button" data-next-order-status="${status}" data-order-id="${order.id}">${STATUS_LABELS[status] || status}</button>`).join('');
+    const card = document.createElement('div');
+    card.className = 'order-card';
+    card.innerHTML = `
+      <div class="order-header">
+        <div>
+          <h4>Pedido #${escapeHtml(shortId(order.id))}</h4>
+          <p class="muted">${escapeHtml(order.deliveryName || 'Cliente')} • ${escapeHtml(order.deliveryPhone || '')}</p>
+        </div>
+        <div class="order-header-right">
+          <span class="tag ${order.status === 'CANCELED' ? 'tag-off' : 'tag-ok'}">${STATUS_LABELS[order.status] || order.status}</span>
+          <strong>${formatMoney(order.total)}</strong>
+        </div>
+      </div>
+      <div class="order-meta">
+        <span>${escapeHtml(order.paymentMethodLabel)}</span>
+        <span>${escapeHtml(order.deliveryStreet || '')}, ${escapeHtml(order.deliveryNumber || '')}</span>
+        <span>${escapeHtml(order.deliveryDistrict || '')}</span>
+      </div>
+      <ul class="order-items">${itemsHtml}</ul>
+      ${order.notes ? `<div class="note-box">Obs. do pedido: ${escapeHtml(order.notes)}</div>` : ''}
+      <div class="order-actions">${buttons || '<span class="muted small">Sem próximas ações</span>'}</div>`;
+    el.ordersList.appendChild(card);
+  });
 }
 
-function normalizeAddress(item) {
-  const cityName = item.city?.name || '';
-  const stateCode = item.city?.state?.code || '';
-  const neighborhoodName = item.neighborhood?.name || '';
-  return {
-    ...item,
-    cityName,
-    neighborhoodName,
-    cityId: item.cityId || item.city?.id || '',
-    neighborhoodId: item.neighborhoodId || item.neighborhood?.id || '',
-    label: item.label || 'Endereço',
-    shortText: [`${item.street}, ${item.number}`, neighborhoodName, cityName].filter(Boolean).join(' • '),
-    labelText: [item.label || 'Endereço', `${item.street}, ${item.number}`, neighborhoodName, cityName && stateCode ? `${cityName} - ${stateCode}` : cityName].filter(Boolean).join(' • ')
-  };
-}
-
-function normalizeUser(item) {
-  return {
-    id: item.id || item.userId || '',
-    name: item.name || '',
-    email: item.email || '',
-    phone: item.phone || ''
-  };
-}
-
-function findMenuItemById(id) {
-  for (const category of state.categories) {
-    const found = category.menuItems.find((item) => item.id === id);
-    if (found) return found;
-  }
-  return null;
-}
-
-function buildOptionHint(option) {
-  const min = option.minSelect ?? (option.required ? 1 : 0);
-  const max = option.maxSelect;
-  if (max && min) return `Escolha de ${min} até ${max}`;
-  if (max) return `Escolha até ${max}`;
-  if (min) return `Escolha no mínimo ${min}`;
-  return 'Opcional';
-}
-
-function toggleModal(modalId, isOpen) {
-  const modal = document.getElementById(modalId);
-  if (!modal) return;
-  modal.classList.toggle('hidden', !isOpen);
-}
-
-function saveApiConfig() {
-  state.apiBaseUrl = el.apiBaseUrlInput.value.trim().replace(/\/$/, '');
-  localStorage.setItem(STORAGE_KEYS.apiBaseUrl, state.apiBaseUrl);
-  toggleModal('configModal', false);
-  showToast('Configuração salva.', 'success');
-}
-
-async function testApiConnection() {
+async function handleSaveRestaurant(event) {
+  event.preventDefault();
+  const restaurantId = getRestaurantId();
+  if (!restaurantId) return;
+  const payload = cleanObject({
+    name: el.restaurantName.value.trim(),
+    phone: emptyToUndefined(el.restaurantPhone.value),
+    description: emptyToUndefined(el.restaurantDescription.value),
+    logoUrl: emptyToUndefined(el.restaurantLogoUrl.value),
+    address: el.restaurantAddress.value.trim(),
+    cityId: emptyToUndefined(el.restaurantCitySelect.value),
+    minOrder: numberOrUndefined(el.restaurantMinOrder.value),
+    isActive: el.restaurantIsActive.checked
+  });
   try {
-    await apiRequest('/', { retryOn401: false });
-    showToast('API respondeu corretamente.', 'success');
+    const updated = await apiRequest(`/restaurants/${restaurantId}`, { method: 'PATCH', auth: true, body: payload, retryOn401: true });
+    state.restaurant = normalizeRestaurant(updated);
+    renderRestaurant();
+    showToast('Dados alterados com sucesso.', 'success');
+    toggleModal('restaurantModal', false);
   } catch (error) {
-    showToast(error.message || 'Falha ao conectar na API.', 'error');
+    showToast(error.message, 'error');
   }
+}
+
+async function handleToggleRestaurantStatus() {
+  const restaurantId = getRestaurantId();
+  if (!restaurantId) return;
+  try {
+    const updated = await apiRequest(`/restaurants/${restaurantId}/status`, {
+      method: 'PATCH', auth: true, retryOn401: true, body: { isActive: !state.restaurant.isActive }
+    });
+    state.restaurant = normalizeRestaurant(updated);
+    fillRestaurantForm();
+    renderRestaurant();
+    showToast('Status do restaurante atualizado.', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+async function handleSaveCategory(event) {
+  event.preventDefault();
+  const categoryId = el.categoryId.value;
+  const restaurantId = getRestaurantId();
+  const basePayload = cleanObject({
+    name: el.categoryName.value.trim(),
+    description: emptyToUndefined(el.categoryDescription.value),
+    imageUrl: emptyToUndefined(el.categoryImageUrl.value),
+    sortOrder: integerOrUndefined(el.categorySortOrder.value),
+    isActive: el.categoryIsActive.checked
+  });
+  const payload = categoryId ? basePayload : { restaurantId, ...basePayload };
+  const method = categoryId ? 'PATCH' : 'POST';
+  const path = categoryId ? `/menu/categories/${categoryId}` : '/menu/categories';
+  try {
+    await apiRequest(path, { method, auth: true, retryOn401: true, body: payload });
+    resetCategoryForm();
+    await loadCatalog();
+    toggleModal('categoryEditorModal', false);
+    showToast('Categoria salva com sucesso.', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+function handleCategoryActions(event) {
+  const btn = event.target.closest('[data-edit-category]');
+  if (!btn) return;
+  const category = state.categories.find((item) => item.id === btn.dataset.editCategory);
+  if (!category) return;
+  el.categoryId.value = category.id;
+  el.categoryName.value = category.name || '';
+  el.categorySortOrder.value = category.sortOrder ?? '';
+  el.categoryDescription.value = category.description || '';
+  el.categoryImageUrl.value = category.imageUrl || '';
+  el.categoryIsActive.checked = Boolean(category.isActive);
+  el.deleteCategoryBtn.classList.remove('hidden');
+  toggleModal('categoryEditorModal', true);
+}
+
+async function handleDeleteCategory() {
+  const id = el.categoryId.value;
+  if (!id) return;
+  try {
+    await apiRequest(`/menu/categories/${id}`, { method: 'DELETE', auth: true, retryOn401: true });
+    resetCategoryForm();
+    await loadCatalog();
+    toggleModal('categoryEditorModal', false);
+    showToast('Categoria excluída.', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+function resetCategoryForm() {
+  el.categoryForm.reset();
+  el.categoryId.value = '';
+  el.categoryIsActive.checked = true;
+  el.deleteCategoryBtn.classList.add('hidden');
+}
+
+async function handleSaveMenuItem(event) {
+  event.preventDefault();
+  const menuItemId = el.menuItemId.value;
+  const restaurantId = getRestaurantId();
+  const basePayload = cleanObject({
+    categoryId: el.menuCategoryId.value || undefined,
+    name: el.menuName.value.trim(),
+    price: Number(el.menuPrice.value),
+    description: emptyToUndefined(el.menuDescription.value),
+    imageUrl: emptyToUndefined(el.menuImageUrl.value),
+    sortOrder: integerOrUndefined(el.menuSortOrder.value),
+    isAvailable: el.menuAvailable.checked,
+    isFeatured: el.menuFeatured.checked,
+    promotionalText: emptyToUndefined(el.menuPromotionalText.value),
+    allowsItemNotes: el.menuAllowsNotes.checked,
+    maxPerOrder: integerOrUndefined(el.menuMaxPerOrder.value),
+    options: collectOptionGroups()
+  });
+  const payload = menuItemId ? basePayload : { restaurantId, ...basePayload };
+  const method = menuItemId ? 'PATCH' : 'POST';
+  const path = menuItemId ? `/menu/${menuItemId}` : '/menu';
+  try {
+    await apiRequest(path, { method, auth: true, retryOn401: true, body: payload });
+    resetMenuForm();
+    await loadCatalog();
+    toggleModal('menuEditorModal', false);
+    showToast('Item salvo com sucesso.', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+function handleMenuListActions(event) {
+  const addBtn = event.target.closest('[data-add-product-to-category]');
+  if (addBtn) {
+    resetMenuForm();
+    el.menuCategoryId.value = addBtn.dataset.addProductToCategory || '';
+    toggleModal('menuEditorModal', true);
+    el.menuName.focus();
+    return;
+  }
+  const btn = event.target.closest('[data-edit-menu-item]');
+  if (!btn) return;
+  const item = state.menuItems.find((entry) => entry.id === btn.dataset.editMenuItem);
+  if (!item) return;
+  fillMenuForm(item);
+  toggleModal('menuEditorModal', true);
+}
+
+async function handleDeleteMenuItem() {
+  const id = el.menuItemId.value;
+  if (!id) return;
+  try {
+    await apiRequest(`/menu/${id}`, { method: 'DELETE', auth: true, retryOn401: true });
+    resetMenuForm();
+    await loadCatalog();
+    toggleModal('menuEditorModal', false);
+    showToast('Item excluído.', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+function resetMenuForm() {
+  el.menuForm.reset();
+  el.menuItemId.value = '';
+  el.optionGroupsContainer.innerHTML = '';
+  el.menuAvailable.checked = true;
+  el.menuAllowsNotes.checked = true;
+  el.deleteMenuItemBtn.classList.add('hidden');
+}
+
+function fillMenuForm(item) {
+  el.menuItemId.value = item.id;
+  el.menuName.value = item.name || '';
+  el.menuPrice.value = item.price ?? '';
+  el.menuDescription.value = item.description || '';
+  el.menuImageUrl.value = item.imageUrl || '';
+  el.menuCategoryId.value = item.categoryId || '';
+  el.menuSortOrder.value = item.sortOrder ?? '';
+  el.menuPromotionalText.value = item.promotionalText || '';
+  el.menuMaxPerOrder.value = item.maxPerOrder ?? '';
+  el.menuAvailable.checked = Boolean(item.isAvailable);
+  el.menuFeatured.checked = Boolean(item.isFeatured);
+  el.menuAllowsNotes.checked = item.allowsItemNotes !== false;
+  el.optionGroupsContainer.innerHTML = '';
+  (item.options || []).forEach((group) => addOptionGroup(group));
+  el.deleteMenuItemBtn.classList.remove('hidden');
+}
+
+function addOptionGroup(group = {}) {
+  const node = el.optionGroupTemplate.content.firstElementChild.cloneNode(true);
+  node.querySelector('[data-option-name]').value = group.name || '';
+  node.querySelector('[data-option-type]').value = group.optionType || 'ADDITION';
+  node.querySelector('[data-option-description]').value = group.description || '';
+  node.querySelector('[data-option-min]').value = group.minSelect ?? '';
+  node.querySelector('[data-option-max]').value = group.maxSelect ?? '';
+  node.querySelector('[data-option-sort]').value = group.sortOrder ?? '';
+  node.querySelector('[data-option-required]').checked = Boolean(group.required);
+  node.querySelector('[data-option-active]').checked = group.isActive !== false;
+  const choicesList = node.querySelector('[data-choices-list]');
+  (group.choices || []).forEach((choice) => addChoice(choicesList, choice));
+  if (!(group.choices || []).length) addChoice(choicesList);
+  el.optionGroupsContainer.appendChild(node);
+}
+
+function addChoice(container, choice = {}) {
+  const row = el.choiceTemplate.content.firstElementChild.cloneNode(true);
+  row.querySelector('[data-choice-name]').value = choice.name || '';
+  row.querySelector('[data-choice-price]').value = choice.price ?? '';
+  row.querySelector('[data-choice-description]').value = choice.description || '';
+  row.querySelector('[data-choice-default]').checked = Boolean(choice.isDefault);
+  container.appendChild(row);
+}
+
+function handleOptionGroupActions(event) {
+  const removeGroup = event.target.closest('[data-remove-option-group]');
+  if (removeGroup) {
+    removeGroup.closest('[data-option-group]')?.remove();
+    return;
+  }
+  const addChoiceBtn = event.target.closest('[data-add-choice]');
+  if (addChoiceBtn) {
+    const box = addChoiceBtn.closest('[data-option-group]');
+    addChoice(box.querySelector('[data-choices-list]'));
+    return;
+  }
+  const removeChoice = event.target.closest('[data-remove-choice]');
+  if (removeChoice) {
+    const list = removeChoice.closest('[data-choices-list]');
+    removeChoice.closest('[data-choice]')?.remove();
+    if (!list.children.length) addChoice(list);
+  }
+}
+
+function collectOptionGroups() {
+  return Array.from(el.optionGroupsContainer.querySelectorAll('[data-option-group]')).map((node) => {
+    const choices = Array.from(node.querySelectorAll('[data-choice]')).map((choiceNode, index) => ({
+      name: choiceNode.querySelector('[data-choice-name]').value.trim(),
+      price: numberOrUndefined(choiceNode.querySelector('[data-choice-price]').value),
+      description: emptyToUndefined(choiceNode.querySelector('[data-choice-description]').value),
+      sortOrder: index,
+      isDefault: choiceNode.querySelector('[data-choice-default]').checked,
+      isActive: true
+    })).filter((choice) => choice.name);
+
+    return {
+      name: node.querySelector('[data-option-name]').value.trim(),
+      optionType: node.querySelector('[data-option-type]').value,
+      description: emptyToUndefined(node.querySelector('[data-option-description]').value),
+      minSelect: integerOrUndefined(node.querySelector('[data-option-min]').value),
+      maxSelect: integerOrUndefined(node.querySelector('[data-option-max]').value),
+      sortOrder: integerOrUndefined(node.querySelector('[data-option-sort]').value),
+      required: node.querySelector('[data-option-required]').checked,
+      isActive: node.querySelector('[data-option-active]').checked,
+      choices
+    };
+  }).filter((group) => group.name && group.choices.length);
+}
+
+async function handleSaveZone(event) {
+  event.preventDefault();
+  const id = el.zoneId.value;
+  const payload = {
+    restaurantId: getRestaurantId(),
+    neighborhoodId: el.zoneNeighborhoodSelect.value,
+    deliveryFee: Number(el.zoneFee.value),
+    minTime: Number(el.zoneMinTime.value),
+    maxTime: Number(el.zoneMaxTime.value),
+    isActive: el.zoneActive.checked
+  };
+  const method = id ? 'PATCH' : 'POST';
+  const path = id ? `/restaurant-delivery-zones/${id}` : '/restaurant-delivery-zones';
+  try {
+    await apiRequest(path, { method, auth: true, retryOn401: true, body: payload });
+    resetZoneForm();
+    await loadZones();
+    toggleModal('zoneEditorModal', false);
+    showToast('Zona salva.', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+function handleZoneListActions(event) {
+  const btn = event.target.closest('[data-edit-zone]');
+  if (!btn) return;
+  const zone = state.deliveryZones.find((item) => item.id === btn.dataset.editZone);
+  if (!zone) return;
+  fillZoneForm(zone);
+}
+
+async function handleDeleteZone() {
+  const id = el.zoneId.value;
+  if (!id) return;
+  try {
+    await apiRequest(`/restaurant-delivery-zones/${id}`, { method: 'DELETE', auth: true, retryOn401: true });
+    resetZoneForm();
+    await loadZones();
+    toggleModal('zoneEditorModal', false);
+    showToast('Zona excluída.', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+function fillZoneForm(zone) {
+  el.zoneId.value = zone.id;
+  el.zoneFee.value = zone.deliveryFee ?? '';
+  el.zoneMinTime.value = zone.minTime ?? '';
+  el.zoneMaxTime.value = zone.maxTime ?? '';
+  el.zoneActive.checked = Boolean(zone.isActive);
+
+  el.zoneStateSelect.value = zone.stateId || '';
+  handleZoneStateChange().then(() => {
+    el.zoneCitySelect.value = zone.cityId || '';
+    return handleZoneCityChange();
+  }).then(() => {
+    el.zoneNeighborhoodSelect.value = zone.neighborhoodId || '';
+  });
+  el.deleteZoneBtn.classList.remove('hidden');
+  toggleModal('zoneEditorModal', true);
+}
+
+function resetZoneForm() {
+  el.zoneForm.reset();
+  el.zoneId.value = '';
+  el.zoneActive.checked = true;
+  el.deleteZoneBtn.classList.add('hidden');
+}
+
+async function handleOrderActions(event) {
+  const button = event.target.closest('[data-next-order-status]');
+  if (!button) return;
+  try {
+    await apiRequest(`/orders/${button.dataset.orderId}/status`, {
+      method: 'PATCH', auth: true, retryOn401: true, body: { status: button.dataset.nextOrderStatus }
+    });
+    await loadOrders();
+    showToast('Pedido atualizado.', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+function getRestaurantId() {
+  return extractUuid(state.restaurant?.id)
+    || extractUuid(state.restaurant?.restaurantId)
+    || extractUuid(localStorage.getItem(STORAGE_KEYS.currentRestaurantId))
+    || '';
+}
+
+function findRestaurantCandidate(input) {
+  if (!input) return input;
+  if (Array.isArray(input)) return findRestaurantCandidate(input[0]);
+  return input.restaurant || input.data?.restaurant || input;
 }
 
 async function apiRequest(path, options = {}) {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-  if (options.auth && state.accessToken) headers.Authorization = `Bearer ${state.accessToken}`;
+  const { method = 'GET', body, auth = false, retryOn401 = false } = options;
+  const headers = { 'Content-Type': 'application/json', 'X-Target-Base-Url': state.apiBaseUrl };
+  if (auth && state.accessToken) headers.Authorization = `Bearer ${state.accessToken}`;
 
-  const requestInit = {
-    method: options.method || 'GET',
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined
-  };
+  const response = await fetch(`/proxy${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const text = await response.text();
+  const raw = text ? safeJsonParse(text) : null;
 
-  const directUrl = `${state.apiBaseUrl}${normalizedPath}`;
-  let response;
-
-  try {
-    response = await fetch(directUrl, requestInit);
-  } catch (error) {
-    response = await fetch(`/proxy${normalizedPath}`, {
-      ...requestInit,
-      headers: { ...headers, 'x-api-base': state.apiBaseUrl }
-    }).catch((proxyError) => {
-      const finalError = new Error(proxyError.message || error.message || 'Failed to fetch');
-      finalError.cause = error;
-      throw finalError;
-    });
+  if ((response.status === 401 || response.status === 403) && retryOn401 && state.refreshToken) {
+    await refreshSession();
+    return apiRequest(path, { ...options, retryOn401: false, auth });
   }
-
-  let payload = null;
-  try { payload = await response.json(); } catch (_) { }
-  const data = unwrapData(payload);
 
   if (!response.ok) {
-    if (response.status === 401 && options.retryOn401 !== false && state.refreshToken) {
-      await refreshSession();
-      return apiRequest(path, { ...options, retryOn401: false });
-    }
-    const apiError = new Error(extractErrorMessage(payload) || `Erro ${response.status}`);
-    apiError.status = response.status;
-    throw apiError;
+    const error = new Error(extractErrorMessage(raw) || `Erro ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
 
-  return data;
+  return unwrapPayload(raw);
 }
 
-function unwrapData(payload) {
-  if (payload && typeof payload === 'object' && 'data' in payload) return payload.data;
-  return payload;
+
+function unwrapPayload(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return input;
+  if ('success' in input && 'data' in input) return input.data;
+  return input;
 }
 
-function unwrapCollection(payload) {
-  const data = unwrapData(payload);
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.items)) return data.items;
-  if (Array.isArray(data?.results)) return data.results;
-  if (Array.isArray(data?.categories)) return data.categories;
-  if (Array.isArray(data?.menuItems)) return data.menuItems;
+function unwrapCollection(input) {
+  if (Array.isArray(input)) return input;
+  if (!input || typeof input !== 'object') return [];
+  for (const key of ['data', 'items', 'results', 'restaurants', 'orders', 'categories']) {
+    if (Array.isArray(input[key])) return input[key];
+  }
   return [];
 }
 
-function extractErrorMessage(payload) {
-  const data = unwrapData(payload) || payload;
-  if (!data) return '';
-  if (typeof data === 'string') return data;
-  if (Array.isArray(data.message)) return data.message.join(', ');
-  return data.message || data.error || '';
+function normalizeUser(user) {
+  if (!user || typeof user !== 'object') return null;
+  return { id: user.id || user.userId || '', name: user.name || '', email: user.email || '', role: user.role || '' };
+}
+
+function normalizeRestaurant(item) {
+  if (!item) return null;
+  const source = findRestaurantCandidate(item);
+  return {
+    id: extractUuid(source.id) || extractUuid(source.restaurantId) || '',
+    restaurantId: extractUuid(source.restaurantId) || extractUuid(source.id) || '',
+    name: source.name,
+    description: source.description,
+    logoUrl: source.logoUrl,
+    phone: source.phone,
+    address: source.address,
+    cityId: source.cityId || source.city?.id || '',
+    cityName: source.city?.name || source.cityName || '',
+    stateId: source.city?.state?.id || source.stateId || '',
+    minOrder: decimalToNumber(source.minOrder),
+    isActive: Boolean(source.isActive),
+    city: source.city || null,
+    hours: normalizeOpeningHours(source.hours || source.openingHours || [])
+  };
+}
+
+function normalizeCategory(item) {
+  if (!item) return null;
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    imageUrl: item.imageUrl,
+    sortOrder: item.sortOrder || 0,
+    isActive: item.isActive !== false
+  };
+}
+
+function normalizeMenuItem(item) {
+  if (!item) return null;
+  const category = item.category || {};
+  return {
+    id: item.id,
+    categoryId: item.categoryId || category.id || '',
+    categoryName: category.name || item.categoryName || '',
+    name: item.name,
+    description: item.description,
+    price: decimalToNumber(item.price),
+    imageUrl: item.imageUrl,
+    isAvailable: item.isAvailable !== false,
+    sortOrder: item.sortOrder || 0,
+    isFeatured: Boolean(item.isFeatured),
+    promotionalText: item.promotionalText,
+    allowsItemNotes: item.allowsItemNotes !== false,
+    maxPerOrder: item.maxPerOrder,
+    options: Array.isArray(item.options) ? item.options.map((option) => ({
+      id: option.id,
+      name: option.name,
+      description: option.description,
+      optionType: option.optionType,
+      required: Boolean(option.required),
+      minSelect: option.minSelect,
+      maxSelect: option.maxSelect,
+      sortOrder: option.sortOrder || 0,
+      isActive: option.isActive !== false,
+      choices: Array.isArray(option.choices) ? option.choices.map((choice) => ({
+        id: choice.id,
+        name: choice.name,
+        description: choice.description,
+        price: decimalToNumber(choice.price),
+        isDefault: Boolean(choice.isDefault)
+      })) : []
+    })) : []
+  };
+}
+
+function normalizeZone(item) {
+  if (!item) return null;
+  return {
+    id: item.id,
+    neighborhoodId: item.neighborhoodId || item.neighborhood?.id || '',
+    neighborhoodName: item.neighborhood?.name || item.neighborhoodName || '',
+    cityId: item.neighborhood?.city?.id || item.cityId || '',
+    cityName: item.neighborhood?.city?.name || item.cityName || '',
+    stateId: item.neighborhood?.city?.state?.id || item.stateId || '',
+    deliveryFee: decimalToNumber(item.deliveryFee),
+    minTime: item.minTime,
+    maxTime: item.maxTime,
+    isActive: item.isActive !== false
+  };
+}
+
+function normalizeOrder(item) {
+  if (!item) return null;
+  return {
+    id: item.id,
+    status: item.status,
+    paymentMethod: item.paymentMethod,
+    paymentMethodLabel: paymentMethodLabel(item.paymentMethod),
+    total: decimalToNumber(item.total),
+    notes: item.notes,
+    deliveryName: item.deliveryName,
+    deliveryPhone: item.deliveryPhone,
+    deliveryStreet: item.deliveryStreet,
+    deliveryNumber: item.deliveryNumber,
+    deliveryDistrict: item.deliveryDistrict,
+    items: Array.isArray(item.items) ? item.items.map((orderItem) => ({
+      quantity: orderItem.quantity,
+      name: orderItem.name,
+      totalPrice: decimalToNumber(orderItem.totalPrice),
+      notes: orderItem.notes,
+      selections: Array.isArray(orderItem.selections) ? orderItem.selections.map((selection) => ({
+        optionName: selection.optionName,
+        choiceName: selection.choiceName,
+        price: decimalToNumber(selection.price)
+      })) : []
+    })) : []
+  };
+}
+
+function paymentMethodLabel(value) {
+  const labels = { CASH: 'Dinheiro', PIX: 'PIX', CREDIT_CARD: 'Cartão de crédito', DEBIT_CARD: 'Cartão de débito' };
+  return labels[value] || value || 'Não informado';
+}
+
+function fillSelect(select, items) {
+  select.innerHTML = items.map((item) => `<option value="${escapeHtml(String(item.value))}">${escapeHtml(item.label)}</option>`).join('');
 }
 
 function showToast(message, type = 'info') {
@@ -1313,33 +1185,30 @@ function showToast(message, type = 'info') {
   toast.className = `toast ${type}`;
   toast.textContent = message;
   el.toastRoot.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
-}
-
-function formatCurrency(value) {
-  return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  setTimeout(() => toast.remove(), 3200);
 }
 
 function readJson(key) {
-  try {
-    return JSON.parse(localStorage.getItem(key) || 'null');
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
 }
 
-function firstName(name) {
-  return String(name || '').trim().split(/\s+/)[0] || 'Cliente';
+function safeJsonParse(text) { try { return JSON.parse(text); } catch { return text; } }
+function cleanObject(obj) {
+  return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
+}
+function extractUuid(value) {
+  const text = String(value || '');
+  const match = text.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+  return match ? match[0] : '';
 }
 
-function initials(text) {
-  return String(text || 'MD').split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('') || 'MD';
-}
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
-}
-
-function escapeAttribute(value) {
-  return escapeHtml(value);
-}
+function extractErrorMessage(data) { return data?.message || data?.error || (Array.isArray(data?.message) ? data.message.join(', ') : 'Erro na requisição'); }
+function emptyToUndefined(value) { const v = String(value || '').trim(); return v ? v : undefined; }
+function integerOrUndefined(value) { if (value === '' || value == null) return undefined; return Number.parseInt(value, 10); }
+function numberOrUndefined(value) { if (value === '' || value == null) return undefined; return Number(value); }
+function decimalToNumber(value) { return value == null || value === '' ? null : Number(value); }
+function formatMoney(value) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0)); }
+function shortId(value) { return String(value || '').slice(0, 8); }
+function sortByOrder(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.name || '').localeCompare(String(b.name || '')); }
+function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
+function escapeAttribute(value) { return escapeHtml(value); }
