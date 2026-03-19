@@ -3,93 +3,205 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Painel do Restaurante</title>
+  <title>Mutum Delivery • Usuário</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <div class="brand-mark">MD</div>
-      <div>
-        <h1>Painel do Restaurante</h1>
-        <p>Pedidos, cardápio, zonas e dados</p>
+    <div class="topbar-left">
+      <div class="brand">
+        <div class="brand-mark">MD</div>
+        <div class="brand-copy">
+          <h1>Mutum Delivery</h1>
+          <p>Peça do seu jeito</p>
+        </div>
       </div>
+      <button id="headerAddressBtn" class="address-chip" type="button">
+        <div class="address-pin">📍</div>
+        <div class="address-copy">
+          <strong>Onde entregar?</strong>
+          <span id="headerAddressText">Escolha um endereço para ver os restaurantes.</span>
+        </div>
+      </button>
     </div>
+
     <div class="topbar-actions">
-            <div id="headerGuest" class="pill">Faça login para continuar</div>
-      <div id="headerUser" class="pill hidden">
-        <span id="headerUserName"></span>
-        <button id="logoutBtn" class="danger-btn small" type="button">Sair</button>
+      <div id="headerGuest" class="header-guest">Entre para fazer seu pedido</div>
+      <div id="headerUser" class="user-chip hidden">
+        <button id="profileBtn" class="user-avatar-btn" type="button" aria-label="Abrir perfil"><div class="user-avatar">👤</div></button>
+        <strong id="headerUserName"></strong>
+        <button id="ordersBtn" class="ghost-btn small topbar-btn" type="button">Pedidos</button>
+                <button id="logoutBtn" class="ghost-btn small topbar-btn" type="button">Sair</button>
       </div>
     </div>
   </header>
 
-  <main class="shell">
+  <main class="shell user-shell">
     <section id="authSection" class="auth-wrap">
-      <div class="panel auth-panel login-panel">
+      <div class="panel auth-switch-panel">
         <div class="login-top-accent"></div>
-        <h2>Entrar</h2>
-        <p class="muted">Use a conta do restaurante para acessar o painel.</p>
-        <form id="loginForm" class="stack-form">
-          <label>
-            <span>E-mail</span>
-            <input name="email" type="email" required />
-          </label>
-          <label>
-            <span>Senha</span>
-            <input name="password" type="password" required />
-          </label>
-          <button class="primary-btn" type="submit">Entrar</button>
-        </form>
+        <div class="auth-toggle">
+          <button id="showLoginBtn" class="auth-toggle-btn active" type="button">Login</button>
+          <button id="showRegisterBtn" class="auth-toggle-btn" type="button">Cadastro</button>
+        </div>
+
+        <div id="loginPage" class="auth-page">
+          <div class="auth-form-inner">
+            <h2>Entrar</h2>
+            <p class="muted">Use sua conta de cliente para ver os restaurantes da sua região e fazer pedidos.</p>
+            <form id="loginForm" class="stack-form">
+              <label>
+                <span>E-mail</span>
+                <input name="email" type="email" required />
+              </label>
+              <label>
+                <span>Senha</span>
+                <input name="password" type="password" required />
+              </label>
+              <button class="primary-btn" type="submit">Entrar</button>
+            </form>
+          </div>
+        </div>
+
+        <div id="registerPage" class="auth-page hidden">
+          <div class="auth-form-inner">
+            <h2>Cadastrar</h2>
+            <p class="muted">Crie sua conta para ver restaurantes da sua região e fazer pedidos.</p>
+            <form id="registerForm" class="stack-form">
+              <label>
+                <span>Nome</span>
+                <input name="name" type="text" required />
+              </label>
+              <label>
+                <span>Telefone</span>
+                <input name="phone" type="text" />
+              </label>
+              <label>
+                <span>E-mail</span>
+                <input name="email" type="email" required />
+              </label>
+              <label>
+                <span>Senha</span>
+                <input name="password" type="password" minlength="6" required />
+              </label>
+              <button class="primary-btn" type="submit">Cadastrar</button>
+            </form>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section id="dashboardSection" class="hidden">
-      <div class="panel dashboard-header">
-        <div class="restaurant-identity">
-          <div class="hero-logo-box">
-            <img id="restaurantLogo" class="hero-logo hidden" alt="Logo do restaurante" />
-            <div id="restaurantLogoFallback" class="hero-logo-fallback">LOGO</div>
+    <section id="appSection" class="hidden app-grid">
+      <section class="content-column">
+        <section id="restaurantSections" class="restaurant-sections"></section>
+
+        <div id="selectedRestaurantPage" class="restaurant-page hidden">
+        <div id="selectedRestaurantPanel" class="panel restaurant-hero hidden">
+          <div class="restaurant-page-actions">
+            <button id="backToRestaurantsBtn" class="ghost-btn" type="button">← Voltar aos restaurantes</button>
+            <button id="reloadBtn" class="ghost-btn" type="button">Recarregar</button>
           </div>
-          <div>
-            <div class="hero-badges">
-              <span id="restaurantStatusBadge" class="badge"></span>
-              <span id="restaurantCityBadge" class="badge muted-badge"></span>
+          <div class="restaurant-hero-main">
+            <div class="restaurant-hero-logo-box">
+              <img id="restaurantLogo" class="restaurant-hero-logo hidden" alt="Logo do restaurante" />
+              <div id="restaurantLogoFallback" class="restaurant-hero-logo-fallback">MD</div>
             </div>
-            <h2 id="restaurantTitle">Seu restaurante</h2>
-            <p id="restaurantSubtitle" class="muted"></p>
+            <div class="restaurant-hero-copy">
+              <div class="hero-top-line">
+                <h2 id="restaurantTitle">Selecione um restaurante</h2>
+                <span id="restaurantRatingBadge" class="rating-badge">5 ★</span>
+              </div>
+              <p id="restaurantSubtitle" class="muted"></p>
+              <div class="restaurant-meta-row">
+                <span id="restaurantFeeMeta">Entrega</span>
+                <span>•</span>
+                <span id="restaurantTimeMeta">Tempo</span>
+                <span>•</span>
+                <span id="restaurantStatusMeta">Status</span>
+                <span>•</span>
+                <span id="restaurantHoursMeta">Horário não informado</span>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="dashboard-actions">
-          <button id="openMenuModalBtn" class="primary-btn" type="button">Cardápio</button>
-          <button id="openZoneModalBtn" class="ghost-btn" type="button">Zona de entrega</button>
-          <button id="openHoursModalBtn" class="ghost-btn" type="button">Horário de funcionamento</button>
-          <button id="openRestaurantModalBtn" class="ghost-btn" type="button">Dados do restaurante</button>
+
+        <div class="panel categories-panel hidden" id="categoriesPanel">
+          <div class="section-head compact-head">
+            <div>
+              <h3>Categorias</h3>
+              <p class="muted">Escolha a seção do cardápio.</p>
+            </div>
+          </div>
+          <div id="categoryTabs" class="category-tabs"></div>
         </div>
+
+        <div class="panel menu-panel hidden" id="menuPanel">
+          <div class="section-head compact-head">
+            <div>
+              <h3>Cardápio</h3>
+              <p class="muted">Escolha os itens e monte o pedido.</p>
+            </div>
+          </div>
+          <div id="menuSections" class="menu-sections"></div>
+          <div id="menuEmpty" class="empty hidden">Nenhum item encontrado para este restaurante.</div>
+        </div>
+      </section>
+
       </div>
 
-      <section class="panel orders-panel">
-        <div class="section-head">
-          <div>
-            <h3>Pedidos</h3>
-            <p class="muted">Página principal em lista para acompanhar e atualizar os pedidos.</p>
+      <aside id="cartColumn" class="cart-column hidden">
+        <div class="panel cart-panel sticky-panel">
+          <div class="section-head compact-head">
+            <div>
+              <h3>Carrinho</h3>
+              <p class="muted">Resumo com adicionais e total calculado.</p>
+            </div>
           </div>
-          <div class="toolbar-actions">
-            <select id="orderFilterSelect">
-              <option value="ALL">Todos</option>
-              <option value="PENDING">Pendentes</option>
-              <option value="ACCEPTED">Aceitos</option>
-              <option value="PREPARING">Em preparo</option>
-              <option value="DELIVERY">Em entrega</option>
-              <option value="DELIVERED">Entregues</option>
-              <option value="CANCELED">Cancelados</option>
+
+          <label>
+            <span>Pagamento</span>
+            <select id="paymentMethodSelect">
+              <option value="CASH">Dinheiro</option>
+              <option value="PIX">PIX</option>
+              <option value="CREDIT_CARD">Cartão de crédito</option>
+              <option value="DEBIT_CARD">Cartão de débito</option>
             </select>
-            <button id="reloadOrdersBtn" class="primary-btn" type="button">Recarregar</button>
+          </label>
+
+          <label id="cashChangeWrap">
+            <span>Troco para</span>
+            <input id="cashChangeInput" type="number" min="0" step="0.01" placeholder="0,00" />
+          </label>
+
+          <label>
+            <span>Nome para entrega</span>
+            <input id="deliveryNameInput" type="text" />
+          </label>
+
+          <label>
+            <span>Telefone</span>
+            <input id="deliveryPhoneInput" type="text" />
+          </label>
+
+          <label>
+            <span>Observações do pedido</span>
+            <textarea id="orderNotesInput" rows="3"></textarea>
+          </label>
+
+          <div id="cartItems" class="cart-items"></div>
+          <div id="cartEmpty" class="empty">Seu carrinho está vazio.</div>
+
+          <div class="cart-summary">
+            <div><span>Subtotal</span><strong id="subtotalValue">R$ 0,00</strong></div>
+            <div><span>Entrega</span><strong id="deliveryFeeValue">R$ 0,00</strong></div>
+            <div class="total-row"><span>Total</span><strong id="totalValue">R$ 0,00</strong></div>
+          </div>
+
+          <div class="form-actions vertical-actions">
+            <button id="submitOrderBtn" class="primary-btn" type="button">Finalizar pedido</button>
           </div>
         </div>
-        <div id="ordersList" class="orders-list"></div>
-        <div id="ordersEmptyState" class="empty hidden">Nenhum pedido encontrado.</div>
-      </section>
+      </aside>
     </section>
   </main>
 
@@ -97,7 +209,7 @@
     <div class="modal-card small-modal">
       <div class="modal-head">
         <h3>Configuração da API</h3>
-        <button id="closeConfigBtn" class="icon-btn" type="button">✕</button>
+        <button class="icon-btn" data-close-modal="configModal" type="button">✕</button>
       </div>
       <div class="stack-form">
         <label>
@@ -112,392 +224,135 @@
     </div>
   </div>
 
-  <div id="restaurantModal" class="modal hidden">
-    <div class="modal-card">
+  <div id="profileModal" class="modal hidden">
+    <div class="modal-card small-modal">
       <div class="modal-head">
-        <h3>Dados do restaurante</h3>
-        <button class="icon-btn" data-close-modal="restaurantModal" type="button">✕</button>
+        <h3>Seu perfil</h3>
+        <button class="icon-btn" data-close-modal="profileModal" type="button">✕</button>
       </div>
-      <form id="restaurantForm" class="stack-form">
+      <div class="profile-card">
+        <div class="profile-avatar">👤</div>
+        <div class="profile-data">
+          <div><strong>Nome</strong><span id="profileName">-</span></div>
+          <div><strong>Telefone</strong><span id="profilePhone">-</span></div>
+          <div><strong>Endereço atual</strong><span id="profileAddress">-</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="addressModal" class="modal hidden">
+    <div class="modal-card medium-modal">
+      <div class="modal-head">
+        <h3>Seus endereços</h3>
+        <button class="icon-btn" data-close-modal="addressModal" type="button">✕</button>
+      </div>
+      <div class="address-picker-wrap">
+        <div id="addressList" class="address-list centered-address-list"></div>
+        <div class="form-actions centered-actions">
+          <button id="openAddAddressBtn" class="primary-btn" type="button">Adicionar endereço</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="addressFormModal" class="modal hidden">
+    <div class="modal-card medium-modal">
+      <div class="modal-head">
+        <h3 id="addressFormTitle">Novo endereço</h3>
+        <button class="icon-btn" data-close-modal="addressFormModal" type="button">✕</button>
+      </div>
+      <div class="stack-form">
         <div class="field-grid two-col">
-          <label>
-            <span>Nome</span>
-            <input id="restaurantName" required />
-          </label>
-          <label>
-            <span>Telefone</span>
-            <input id="restaurantPhone" />
-          </label>
-          <label class="span-2">
-            <span>Descrição</span>
-            <textarea id="restaurantDescription"></textarea>
-          </label>
-          <label>
-            <span>Logo URL</span>
-            <input id="restaurantLogoUrl" />
-          </label>
-          <label>
-            <span>Endereço</span>
-            <input id="restaurantAddress" required />
-          </label>
-          <label>
-            <span>Estado</span>
-            <select id="restaurantStateSelect"></select>
-          </label>
-          <label>
-            <span>Cidade</span>
-            <select id="restaurantCitySelect"></select>
-          </label>
-          <label>
-            <span>Pedido mínimo</span>
-            <input id="restaurantMinOrder" type="number" min="0" step="0.01" />
-          </label>
-          <label class="switch-row">
-            <input id="restaurantIsActive" type="checkbox" />
-            <span>Restaurante ativo</span>
-          </label>
+          <label><span>Apelido</span><input id="addressLabelInput" type="text" placeholder="Casa" /></label>
+          <label><span>CEP</span><input id="addressZipInput" type="text" placeholder="36950-000" /></label>
         </div>
-        <div class="form-actions between">
-          <button id="toggleRestaurantStatusBtn" class="ghost-btn" type="button">Alternar status</button>
-          <button class="primary-btn" type="submit">Salvar dados</button>
+        <div class="field-grid two-col">
+          <label><span>Rua</span><input id="addressStreetInput" type="text" /></label>
+          <label><span>Número</span><input id="addressNumberInput" type="text" /></label>
         </div>
-      </form>
-    </div>
-  </div>
-
-
-  <div id="hoursModal" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-head">
-        <div>
-          <h3>Horário de funcionamento</h3>
-          <p class="muted">Escolha o horário de abertura e fechamento para cada dia.</p>
+        <div class="field-grid two-col">
+          <label><span>Complemento</span><input id="addressComplementInput" type="text" /></label>
+          <label><span>Referência</span><input id="addressReferenceInput" type="text" /></label>
         </div>
-        <button class="icon-btn" data-close-modal="hoursModal" type="button">✕</button>
+        <div class="field-grid three-col">
+          <label><span>Estado</span><select id="stateSelect"></select></label>
+          <label><span>Cidade</span><select id="citySelect"></select></label>
+          <label><span>Bairro</span><select id="neighborhoodSelect"></select></label>
+        </div>
+        <label class="checkbox-inline"><input id="addressDefaultInput" type="checkbox" checked /> <span>Definir como principal</span></label>
+        <div class="form-actions">
+          <button id="saveAddressBtn" class="primary-btn" type="button">Salvar endereço</button>
+        </div>
       </div>
-      <form id="hoursForm" class="stack-form">
-        <div id="hoursGrid" class="hours-grid"></div>
-        <div class="form-actions between">
-          <button id="resetHoursBtn" class="ghost-btn" type="button">Limpar horários</button>
-          <button class="primary-btn" type="submit">Salvar horários</button>
-        </div>
-      </form>
     </div>
   </div>
 
-  <div id="menuModal" class="modal hidden">
+  <div id="itemModal" class="modal hidden">
     <div class="modal-card large-modal">
       <div class="modal-head">
         <div>
-          <h3>Cardápio</h3>
-          <p class="muted">Visual em estilo vitrine, com botões para adicionar categoria, produto e editar item.</p>
+          <h3 id="itemModalTitle">Produto</h3>
+          <p id="itemModalSubtitle" class="muted"></p>
         </div>
-        <button class="icon-btn" data-close-modal="menuModal" type="button">✕</button>
+        <button class="icon-btn" data-close-modal="itemModal" type="button">✕</button>
       </div>
 
-      <div class="menu-toolbar-main">
-        <button id="openCategoriesModalBtn" class="ghost-btn" type="button">Categorias</button>
-        <button id="addMenuItemShortcutBtn" class="primary-btn" type="button">Adicionar produto</button>
-      </div>
-
-      <div class="menu-visual-shell single-column">
-        <section class="menu-showcase panel inner-panel full-width-panel">
-          <div class="section-head compact-head">
+      <div class="item-modal-layout">
+        <div class="item-modal-main">
+          <div class="item-cover-row">
+            <img id="itemModalImage" class="item-modal-image hidden" alt="Imagem do produto" />
+            <div id="itemModalImageFallback" class="item-modal-image-fallback">MD</div>
             <div>
-              <h4>Itens do cardápio</h4>
-              <p class="muted">Prévia igual ao cliente, em seções verticais na ordem escolhida.</p>
+              <div class="price-big" id="itemBasePrice">R$ 0,00</div>
+              <div id="itemBadges" class="tag-row"></div>
             </div>
           </div>
-          <div id="menuList" class="menu-preview-vertical"></div>
-          <div id="menuEmptyState" class="empty hidden">Nenhum item cadastrado.</div>
-        </section>
-      </div>
 
-      <div class="menu-help-banner">
-        <span class="tag">A ordem define quem aparece primeiro</span>
-        <span class="muted small">Ex.: ordem 1 vem antes da 2. Para criar ou editar, use os botões e as janelas separadas.</span>
-      </div>
-    </div>
-  </div>
-
-  <div id="categoriesModal" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-head">
-        <div>
-          <h3>Categorias</h3>
-          <p class="muted">Organize as categorias e edite quando precisar.</p>
+          <div id="optionGroupsRoot" class="option-groups"></div>
         </div>
-        <button class="icon-btn" data-close-modal="categoriesModal" type="button">✕</button>
-      </div>
-      <div class="menu-toolbar-main categories-toolbar">
-        <button id="addCategoryFromModalBtn" class="primary-btn" type="button">Adicionar categoria</button>
-      </div>
-      <div id="categoryList" class="list-stack"></div>
-      <div id="categoryEmptyState" class="empty hidden">Nenhuma categoria cadastrada.</div>
-    </div>
-  </div>
 
-  <div id="categoryEditorModal" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-head">
-        <div>
-          <h3>Categoria</h3>
-          <p class="muted">A ordem é numérica: 1 aparece antes de 2, depois 3 e assim por diante.</p>
-        </div>
-        <button class="icon-btn" data-close-modal="categoryEditorModal" type="button">✕</button>
-      </div>
-      <form id="categoryForm" class="stack-form compact-form">
-        <input id="categoryId" type="hidden" />
-        <div class="field-grid two-col">
+        <aside class="item-modal-side">
           <label>
-            <span>Nome</span>
-            <input id="categoryName" required />
+            <span>Quantidade</span>
+            <input id="itemQuantityInput" type="number" min="1" step="1" value="1" />
           </label>
           <label>
-            <span>Ordem</span>
-            <input id="categorySortOrder" type="number" min="0" step="1" />
+            <span>Observações</span>
+            <textarea id="itemNotesInput" rows="4"></textarea>
           </label>
-          <label class="span-2">
-            <span>Descrição</span>
-            <textarea id="categoryDescription"></textarea>
-          </label>
-          <label>
-            <span>Imagem URL</span>
-            <input id="categoryImageUrl" />
-          </label>
-          <label class="switch-row">
-            <input id="categoryIsActive" type="checkbox" checked />
-            <span>Categoria ativa</span>
-          </label>
-        </div>
-        <div class="form-actions between">
-          <button id="resetCategoryFormBtn" class="ghost-btn" type="button">Limpar</button>
-          <div class="toolbar-actions">
-            <button id="deleteCategoryBtn" class="danger-btn hidden" type="button">Excluir</button>
-            <button class="primary-btn" type="submit">Salvar categoria</button>
+          <div class="cart-summary item-summary-card">
+            <div><span>Base</span><strong id="itemSummaryBase">R$ 0,00</strong></div>
+            <div><span>Adicionais</span><strong id="itemSummaryExtras">R$ 0,00</strong></div>
+            <div class="total-row"><span>Total do item</span><strong id="itemSummaryTotal">R$ 0,00</strong></div>
           </div>
-        </div>
-      </form>
+          <button id="addToCartBtn" class="primary-btn" type="button">Adicionar ao carrinho</button>
+        </aside>
+      </div>
     </div>
   </div>
 
-  <div id="menuEditorModal" class="modal hidden">
-    <div class="modal-card">
+  <div id="ordersModal" class="modal hidden">
+    <div class="modal-card medium-modal">
       <div class="modal-head">
-        <div>
-          <h3>Produto</h3>
-          <p class="muted">Compatível com açaí, marmita e grupos com mínimo e máximo de escolhas.</p>
-        </div>
-        <button class="icon-btn" data-close-modal="menuEditorModal" type="button">✕</button>
+        <h3>Seus pedidos</h3>
+        <button class="icon-btn" data-close-modal="ordersModal" type="button">✕</button>
       </div>
-      <form id="menuForm" class="stack-form compact-form">
-        <input id="menuItemId" type="hidden" />
-        <div class="field-grid two-col">
-          <label>
-            <span>Nome</span>
-            <input id="menuName" required />
-          </label>
-          <label>
-            <span>Preço base</span>
-            <input id="menuPrice" type="number" min="0" step="0.01" required />
-          </label>
-          <label>
-            <span>Categoria</span>
-            <select id="menuCategoryId"></select>
-          </label>
-          <label>
-            <span>Ordem</span>
-            <input id="menuSortOrder" type="number" min="0" step="1" />
-          </label>
-          <label class="span-2">
-            <span>Descrição</span>
-            <textarea id="menuDescription"></textarea>
-          </label>
-          <label>
-            <span>Imagem URL</span>
-            <input id="menuImageUrl" />
-          </label>
-          <label>
-            <span>Texto promocional</span>
-            <input id="menuPromotionalText" />
-          </label>
-          <label>
-            <span>Máximo por pedido</span>
-            <input id="menuMaxPerOrder" type="number" min="1" step="1" />
-          </label>
-          <label class="switch-row">
-            <input id="menuAvailable" type="checkbox" checked />
-            <span>Disponível</span>
-          </label>
-          <label class="switch-row">
-            <input id="menuFeatured" type="checkbox" />
-            <span>Destaque</span>
-          </label>
-          <label class="switch-row">
-            <input id="menuAllowsNotes" type="checkbox" checked />
-            <span>Permite observações</span>
-          </label>
-        </div>
-
-        <div class="option-builder-head">
-          <div>
-            <h5>Grupos de opções</h5>
-            <p class="muted small">Ex.: de 10 opções escolher 4. Você pode criar quantos grupos quiser.</p>
-          </div>
-          <button id="addOptionGroupBtn" class="ghost-btn" type="button">Adicionar grupo</button>
-        </div>
-        <div id="optionGroupsContainer" class="option-groups"></div>
-
-        <div class="form-actions between">
-          <button id="resetMenuFormBtn" class="ghost-btn" type="button">Limpar</button>
-          <div class="toolbar-actions">
-            <button id="deleteMenuItemBtn" class="danger-btn hidden" type="button">Excluir</button>
-            <button class="primary-btn" type="submit">Salvar item</button>
-          </div>
-        </div>
-      </form>
+      <div id="ordersList" class="orders-list"></div>
     </div>
   </div>
 
-  <div id="zoneModal" class="modal hidden">
-    <div class="modal-card">
+  <div id="orderDetailsModal" class="modal hidden">
+    <div class="modal-card medium-modal">
       <div class="modal-head">
-        <div>
-          <h3>Zonas de entrega</h3>
-          <p class="muted">Veja os bairros atendidos e abra uma janela separada para criar ou editar.</p>
-        </div>
-        <button class="icon-btn" data-close-modal="zoneModal" type="button">✕</button>
+        <h3>Detalhes do pedido</h3>
+        <button class="icon-btn" data-close-modal="orderDetailsModal" type="button">✕</button>
       </div>
-      <div class="menu-toolbar-main categories-toolbar">
-        <button id="addZoneFromModalBtn" class="primary-btn" type="button">Adicionar zona de entrega</button>
-      </div>
-      <div id="zonesList" class="list-stack"></div>
-      <div id="zonesEmptyState" class="empty hidden">Nenhuma zona cadastrada.</div>
-    </div>
-  </div>
-
-  <div id="zoneEditorModal" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-head">
-        <div>
-          <h3>Zona de entrega</h3>
-          <p class="muted">Cadastre um bairro atendido e as regras de entrega.</p>
-        </div>
-        <button class="icon-btn" data-close-modal="zoneEditorModal" type="button">✕</button>
-      </div>
-      <form id="zoneForm" class="stack-form compact-form">
-        <input id="zoneId" type="hidden" />
-        <div class="field-grid two-col">
-          <label>
-            <span>Estado</span>
-            <select id="zoneStateSelect"></select>
-          </label>
-          <label>
-            <span>Cidade</span>
-            <select id="zoneCitySelect"></select>
-          </label>
-          <label class="span-2">
-            <span>Bairro</span>
-            <select id="zoneNeighborhoodSelect"></select>
-          </label>
-          <label>
-            <span>Taxa</span>
-            <input id="zoneFee" type="number" min="0" step="0.01" required />
-          </label>
-          <label>
-            <span>Tempo mínimo</span>
-            <input id="zoneMinTime" type="number" min="1" step="1" required />
-          </label>
-          <label>
-            <span>Tempo máximo</span>
-            <input id="zoneMaxTime" type="number" min="1" step="1" required />
-          </label>
-          <label class="switch-row">
-            <input id="zoneActive" type="checkbox" checked />
-            <span>Zona ativa</span>
-          </label>
-        </div>
-        <div class="form-actions between">
-          <button id="resetZoneFormBtn" class="ghost-btn" type="button">Limpar</button>
-          <div class="toolbar-actions">
-            <button id="deleteZoneBtn" class="danger-btn hidden" type="button">Excluir</button>
-            <button class="primary-btn" type="submit">Salvar zona</button>
-          </div>
-        </div>
-      </form>
+      <div id="orderDetailsContent" class="order-details"></div>
     </div>
   </div>
 
   <div id="toastRoot" class="toast-root"></div>
-
-  <template id="optionGroupTemplate">
-    <div class="option-group-card" data-option-group>
-      <div class="option-group-toolbar">
-        <strong>Grupo de opções</strong>
-        <button class="danger-btn small" data-remove-option-group type="button">Remover grupo</button>
-      </div>
-      <div class="field-grid two-col">
-        <label>
-          <span>Nome do grupo</span>
-          <input data-option-name required />
-        </label>
-        <label>
-          <span>Tipo</span>
-          <select data-option-type>
-            <option value="ADDITION">Adicional</option>
-            <option value="SIZE">Tamanho</option>
-            <option value="FRUIT">Fruta</option>
-            <option value="TOPPING">Topping</option>
-            <option value="COMPLEMENT">Complemento</option>
-            <option value="SYRUP">Calda</option>
-            <option value="CUSTOMIZATION">Customização</option>
-          </select>
-        </label>
-        <label class="span-2">
-          <span>Descrição</span>
-          <input data-option-description />
-        </label>
-        <label>
-          <span>Mínimo de escolhas</span>
-          <input data-option-min type="number" min="0" step="1" />
-        </label>
-        <label>
-          <span>Máximo de escolhas</span>
-          <input data-option-max type="number" min="1" step="1" />
-        </label>
-        <label>
-          <span>Ordem</span>
-          <input data-option-sort type="number" min="0" step="1" />
-        </label>
-        <label class="switch-row">
-          <input data-option-required type="checkbox" />
-          <span>Obrigatório</span>
-        </label>
-        <label class="switch-row">
-          <input data-option-active type="checkbox" checked />
-          <span>Grupo ativo</span>
-        </label>
-      </div>
-      <div class="option-builder-head compact">
-        <div>
-          <h5>Escolhas</h5>
-          <p class="muted small">Ex.: 10 opções disponíveis e o cliente pode marcar 4.</p>
-        </div>
-        <button class="ghost-btn small" data-add-choice type="button">Adicionar escolha</button>
-      </div>
-      <div class="choices-list" data-choices-list></div>
-    </div>
-  </template>
-
-  <template id="choiceTemplate">
-    <div class="choice-row" data-choice>
-      <input data-choice-name placeholder="Nome" required />
-      <input data-choice-price type="number" min="0" step="0.01" placeholder="Preço" />
-      <input data-choice-description placeholder="Descrição" />
-      <label class="inline-check"><input data-choice-default type="checkbox" /> Padrão</label>
-      <button class="danger-btn small" data-remove-choice type="button">Remover</button>
-    </div>
-  </template>
 
   <script src="/app.js"></script>
 </body>
