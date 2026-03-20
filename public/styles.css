@@ -761,3 +761,90 @@ textarea { resize: vertical; }
 @media (max-width: 720px) {
   .order-details-grid { grid-template-columns:1fr; }
 }
+
+
+/* loading + professional polish */
+body.app-booting { overflow: hidden; }
+.boot-splash,
+.global-loader {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(31, 20, 18, 0.34);
+  backdrop-filter: blur(10px);
+  z-index: 9999;
+}
+.global-loader { z-index: 9998; }
+.boot-card,
+.global-loader-card {
+  width: min(100%, 420px);
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 26px 24px;
+  border-radius: 24px;
+  background: rgba(255,255,255,.96);
+  border: 1px solid rgba(239, 207, 204, .9);
+  box-shadow: 0 24px 64px rgba(35, 24, 21, 0.18);
+}
+.boot-card strong,
+.global-loader-card strong { font-size: 1.02rem; }
+.boot-card span,
+.global-loader-card span { color: var(--muted); }
+.boot-spinner,
+.inline-spinner {
+  border-radius: 999px;
+  border: 3px solid rgba(221, 28, 26, .15);
+  border-top-color: var(--red);
+  animation: spin .85s linear infinite;
+}
+.boot-spinner { width: 42px; height: 42px; }
+.inline-spinner {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 8px;
+}
+.primary-btn,
+.ghost-btn,
+.icon-btn,
+.danger-btn,
+.auth-toggle-btn,
+.restaurant-card,
+.order-card,
+.panel,
+.address-chip,
+.user-chip {
+  transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease, border-color .18s ease, background .18s ease;
+}
+.panel,
+.restaurant-card,
+.item-card,
+.cart-item,
+.order-card,
+.modal-card {
+  box-shadow: 0 12px 28px rgba(35, 24, 21, 0.07);
+}
+button.is-loading,
+button:disabled {
+  opacity: .78;
+  cursor: wait;
+  pointer-events: none;
+}
+.empty-spotlight {
+  text-align: center;
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  padding: 34px 24px;
+  background: linear-gradient(180deg, #fffefd 0%, #fff8f6 100%);
+}
+.empty-spotlight h3 { margin: 0; font-size: 1.15rem; }
+.empty-spotlight p { margin: 0; color: var(--muted); max-width: 560px; }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

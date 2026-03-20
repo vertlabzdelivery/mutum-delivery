@@ -6,7 +6,21 @@
   <title>Mutum Delivery • Usuário</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
-<body>
+<body class="app-booting">
+  <div id="bootSplash" class="boot-splash">
+    <div class="boot-card">
+      <div class="boot-spinner" aria-hidden="true"></div>
+      <strong>Carregando o Mutum Delivery</strong>
+      <span id="bootSplashText">Preparando sua sessão e os restaurantes disponíveis.</span>
+    </div>
+  </div>
+  <div id="globalLoader" class="global-loader hidden" aria-live="polite">
+    <div class="global-loader-card">
+      <div class="boot-spinner" aria-hidden="true"></div>
+      <strong>Processando</strong>
+      <span id="globalLoaderText">Aguarde um instante...</span>
+    </div>
+  </div>
   <header class="topbar">
     <div class="topbar-left">
       <div class="brand">

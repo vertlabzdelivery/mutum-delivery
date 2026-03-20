@@ -27,7 +27,8 @@ const state = {
   editingAddressId: null,
   authMode: 'login',
   orders: [],
-  restaurantHoursById: {}
+  restaurantHoursById: {},
+  needsAddressSetup: false
 };
 
 const el = {
@@ -120,20 +121,28 @@ const el = {
   itemSummaryExtras: document.getElementById('itemSummaryExtras'),
   itemSummaryTotal: document.getElementById('itemSummaryTotal'),
   addToCartBtn: document.getElementById('addToCartBtn'),
-  toastRoot: document.getElementById('toastRoot')
+  toastRoot: document.getElementById('toastRoot'),
+  bootSplash: document.getElementById('bootSplash'),
+  bootSplashText: document.getElementById('bootSplashText'),
+  globalLoader: document.getElementById('globalLoader'),
+  globalLoaderText: document.getElementById('globalLoaderText')
 };
 
 init();
 
-function init() {
+async function init() {
   bindEvents();
   updateHeader();
   setAuthMode('login');
   toggleCashChange();
-  if (state.accessToken) {
-    bootstrapAuthenticatedArea();
-  } else {
-    showAuthOnly();
+  try {
+    if (state.accessToken) {
+      await bootstrapAuthenticatedArea();
+    } else {
+      showAuthOnly();
+    }
+  } finally {
+    setBooting(false);
   }
 }
 
@@ -152,10 +161,17 @@ function bindEvents() {
   el.citySelect?.addEventListener('change', handleCityChange);
   el.saveAddressBtn?.addEventListener('click', saveAddress);
   el.openAddAddressBtn?.addEventListener('click', openAddressFormModal);
-  el.reloadBtn.addEventListener('click', async () => {
-    await loadRestaurantsByAddress();
-    await loadSelectedRestaurantCatalog();
-    showToast('Dados recarregados.', 'success');
+  el.reloadBtn.addEventListener('click', async (event) => {
+    await runWithButtonLoading(event.currentTarget, 'Recarregando...', async () => {
+      setGlobalLoading(true, 'Atualizando restaurantes e cardápio...');
+      try {
+        await loadRestaurantsByAddress();
+        await loadSelectedRestaurantCatalog();
+        showToast('Dados recarregados.', 'success');
+      } finally {
+        setGlobalLoading(false);
+      }
+    });
   });
   el.categoryTabs.addEventListener('click', handleCategoryTabClick);
   el.menuSections.addEventListener('click', handleMenuClick);
@@ -178,6 +194,41 @@ function bindEvents() {
   });
 }
 
+
+function setBooting(isBooting, message = 'Preparando sua experiência...') {
+  document.body.classList.toggle('app-booting', isBooting);
+  if (el.bootSplash) el.bootSplash.classList.toggle('hidden', !isBooting);
+  if (el.bootSplashText) el.bootSplashText.textContent = message;
+}
+
+function setGlobalLoading(isLoading, message = 'Aguarde um instante...') {
+  if (el.globalLoader) el.globalLoader.classList.toggle('hidden', !isLoading);
+  if (el.globalLoaderText) el.globalLoaderText.textContent = message;
+}
+
+function setButtonLoading(button, isLoading, text = 'Carregando...') {
+  if (!button) return;
+  if (isLoading) {
+    if (!button.dataset.originalHtml) button.dataset.originalHtml = button.innerHTML;
+    button.classList.add('is-loading');
+    button.disabled = true;
+    button.innerHTML = `<span class="inline-spinner" aria-hidden="true"></span>${escapeHtml(text)}`;
+    return;
+  }
+  if (button.dataset.originalHtml) button.innerHTML = button.dataset.originalHtml;
+  button.classList.remove('is-loading');
+  button.disabled = false;
+}
+
+async function runWithButtonLoading(button, text, task) {
+  setButtonLoading(button, true, text);
+  try {
+    return await task();
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
 function setAuthMode(mode) {
   state.authMode = mode;
   el.showLoginBtn?.classList.toggle('active', mode === 'login');
@@ -196,7 +247,13 @@ function updateHeader() {
 
 function updateHeaderAddress() {
   const address = state.addresses.find((item) => item.id === state.selectedAddressId);
-  el.headerAddressText.textContent = address ? address.shortText : 'Escolha um endereço para ver os restaurantes.';
+  if (address) {
+    el.headerAddressText.textContent = address.shortText;
+    return;
+  }
+  el.headerAddressText.textContent = state.currentUser
+    ? 'Cadastre seu endereço para começar a pedir.'
+    : 'Escolha um endereço para ver os restaurantes.';
 }
 
 function openProfileModal() {
@@ -340,22 +397,40 @@ function formatDateTime(value) {
 }
 
 function showAuthOnly() {
+  setGlobalLoading(false);
   el.authSection.classList.remove('hidden');
   el.appSection.classList.add('hidden');
 }
 
 async function bootstrapAuthenticatedArea() {
+  setGlobalLoading(true, 'Carregando sua conta e seus endereços...');
   try {
     await loadCurrentUser();
-    await loadAddresses();
-    await loadRestaurantsByAddress();
-    openRestaurantListView();
+    const hasAddress = await loadAddresses();
     fillDeliveryFields();
     el.authSection.classList.add('hidden');
     el.appSection.classList.remove('hidden');
+
+    if (!hasAddress) {
+      state.needsAddressSetup = true;
+      state.restaurants = [];
+      state.restaurantBuckets = { available: [], closed: [], cityOnly: [] };
+      renderAddressRequiredState();
+      openRestaurantListView(true);
+      updateHeaderAddress();
+      showToast('Cadastre seu primeiro endereço para liberar os restaurantes.', 'info');
+      await openAddressFormModal();
+      return;
+    }
+
+    state.needsAddressSetup = false;
+    await loadRestaurantsByAddress();
+    openRestaurantListView();
   } catch (error) {
     showToast(error.message || 'Erro ao carregar painel do usuário.', 'error');
     if (error.status === 401) logout(false);
+  } finally {
+    setGlobalLoading(false);
   }
 }
 
@@ -363,36 +438,40 @@ async function handleLogin(event) {
   event.preventDefault();
   const formEl = event.currentTarget;
   const form = new FormData(formEl);
-  try {
-    const result = await apiRequest('/auth/login', { method: 'POST', body: { email: form.get('email'), password: form.get('password') } });
-    applyAuth(result);
-    formEl.reset();
-    await bootstrapAuthenticatedArea();
-    showToast('Login realizado com sucesso.', 'success');
-  } catch (error) {
-    logout(false);
-    showToast(error.message || 'Falha ao entrar.', 'error');
-  }
+  await runWithButtonLoading(event.submitter || formEl.querySelector('button[type="submit"]'), 'Entrando...', async () => {
+    try {
+      const result = await apiRequest('/auth/login', { method: 'POST', body: { email: form.get('email'), password: form.get('password') } });
+      applyAuth(result);
+      formEl.reset();
+      await bootstrapAuthenticatedArea();
+      showToast('Login realizado com sucesso.', 'success');
+    } catch (error) {
+      logout(false);
+      showToast(error.message || 'Falha ao entrar.', 'error');
+    }
+  });
 }
 
 async function handleRegister(event) {
   event.preventDefault();
   const formEl = event.currentTarget;
   const form = new FormData(formEl);
-  try {
-    await apiRequest('/auth/register', { method: 'POST', body: {
-      name: String(form.get('name') || '').trim(),
-      phone: String(form.get('phone') || '').trim() || undefined,
-      email: String(form.get('email') || '').trim(),
-      password: String(form.get('password') || '')
-    } });
-    formEl.reset();
-    setAuthMode('login');
-    el.loginForm?.querySelector('input[name="email"]')?.focus();
-    showToast('Cadastro realizado com sucesso. Agora é só entrar.', 'success');
-  } catch (error) {
-    showToast(error.message || 'Não foi possível cadastrar.', 'error');
-  }
+  await runWithButtonLoading(event.submitter || formEl.querySelector('button[type="submit"]'), 'Criando conta...', async () => {
+    try {
+      const result = await apiRequest('/auth/register', { method: 'POST', body: {
+        name: String(form.get('name') || '').trim(),
+        phone: String(form.get('phone') || '').trim() || undefined,
+        email: String(form.get('email') || '').trim(),
+        password: String(form.get('password') || '')
+      } });
+      applyAuth(result);
+      formEl.reset();
+      await bootstrapAuthenticatedArea();
+      showToast('Conta criada e login realizado com sucesso.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Não foi possível cadastrar.', 'error');
+    }
+  });
 }
 
 function applyAuth(result) {
@@ -448,12 +527,18 @@ async function loadCurrentUser() {
 async function loadAddresses() {
   const addresses = unwrapCollection(await apiRequest('/addresses/my', { auth: true, retryOn401: true }));
   state.addresses = addresses.map(normalizeAddress);
-  if (!state.addresses.length) throw new Error('Cadastre um endereço antes de fazer pedidos.');
+  if (!state.addresses.length) {
+    state.selectedAddressId = '';
+    renderAddressList();
+    updateHeaderAddress();
+    return false;
+  }
   state.selectedAddressId = state.selectedAddressId && state.addresses.some((item) => item.id === state.selectedAddressId)
     ? state.selectedAddressId
     : (state.addresses.find((item) => item.isDefault)?.id || state.addresses[0].id);
   renderAddressList();
   updateHeaderAddress();
+  return true;
 }
 
 async function loadRestaurantsByAddress() {
@@ -554,6 +639,16 @@ async function loadSelectedRestaurantCatalog() {
 
 function renderAddressList() {
   if (!el.addressList) return;
+  if (!state.addresses.length) {
+    el.addressList.innerHTML = `
+      <div class="empty-spotlight">
+        <h3>Nenhum endereço cadastrado</h3>
+        <p>Cadastre seu primeiro endereço para ver os restaurantes que entregam na sua região.</p>
+        <button class="primary-btn" type="button" data-open-first-address>Adicionar endereço</button>
+      </div>
+    `;
+    return;
+  }
   el.addressList.innerHTML = state.addresses.map((address) => `
     <div class="address-list-row">
       <button class="address-list-item ${address.id === state.selectedAddressId ? 'active' : ''}" type="button" data-address-id="${escapeAttribute(address.id)}">
@@ -566,7 +661,21 @@ function renderAddressList() {
   `).join('');
 }
 
+function renderAddressRequiredState() {
+  el.restaurantSections.innerHTML = `
+    <section class="panel empty-spotlight">
+      <h3>Falta só o seu endereço</h3>
+      <p>Assim que você cadastrar o primeiro endereço, o app libera os restaurantes que atendem a sua região e já deixa tudo pronto para o pedido.</p>
+      <button class="primary-btn" type="button" data-open-first-address>Cadastrar endereço</button>
+    </section>
+  `;
+}
+
 function renderRestaurantSections() {
+  if (!state.addresses.length) {
+    renderAddressRequiredState();
+    return;
+  }
   const address = state.addresses.find((item) => item.id === state.selectedAddressId);
   const cityName = address?.city?.name || address?.cityName || 'sua cidade';
   const neighborhoodName = address?.neighborhood?.name || address?.neighborhoodName || 'seu bairro';
@@ -725,6 +834,12 @@ function renderItemCard(item) {
 }
 
 function handleRestaurantCardClick(event) {
+  const firstAddressButton = event.target.closest('[data-open-first-address]');
+  if (firstAddressButton) {
+    openAddressFormModal().catch((error) => showToast(error.message || 'Não foi possível abrir o cadastro de endereço.', 'error'));
+    return;
+  }
+
   const editAddressButton = event.target.closest('[data-edit-address-id]');
   if (editAddressButton) {
     openEditAddressModal(editAddressButton.dataset.editAddressId).catch((error) => showToast(error.message || 'Não foi possível abrir o endereço.', 'error'));
@@ -745,8 +860,11 @@ function handleRestaurantCardClick(event) {
   }
   state.selectedRestaurant = restaurant;
   openRestaurantDetailView();
+  setGlobalLoading(true, 'Abrindo o cardápio do restaurante...');
   loadSelectedRestaurantCatalog().catch((error) => {
     showToast(error.message || 'Não foi possível abrir o restaurante.', 'error');
+  }).finally(() => {
+    setGlobalLoading(false);
   });
   renderRestaurantSections();
 }
@@ -973,33 +1091,38 @@ function handleCartActions(event) {
   renderCart();
 }
 
-async function quoteOrder() {
-  try {
-    const payload = buildOrderPayload();
-    const quote = await apiRequest('/orders/quote', { method: 'POST', auth: true, retryOn401: true, body: payload });
-    state.currentQuote = quote;
-    const total = Number(quote.total ?? quote.summary?.total ?? 0);
-    const deliveryFee = Number((quote.deliveryFee ?? quote.summary?.deliveryFee ?? state.deliveryFee) || 0);
-    state.deliveryFee = deliveryFee;
-    renderCart();
-    if (total) el.totalValue.textContent = formatCurrency(total);
-    showToast('Pedido calculado com sucesso.', 'success');
-  } catch (error) {
-    showToast(error.message || 'Não foi possível calcular o pedido.', 'error');
-  }
+async function quoteOrder(event) {
+  await runWithButtonLoading(event?.currentTarget || el.quoteBtn, 'Calculando...', async () => {
+    try {
+      const payload = buildOrderPayload();
+      const quote = await apiRequest('/orders/quote', { method: 'POST', auth: true, retryOn401: true, body: payload });
+      state.currentQuote = quote;
+      const total = Number(quote.total ?? quote.summary?.total ?? 0);
+      const deliveryFee = Number((quote.deliveryFee ?? quote.summary?.deliveryFee ?? state.deliveryFee) || 0);
+      state.deliveryFee = deliveryFee;
+      renderCart();
+      if (total) el.totalValue.textContent = formatCurrency(total);
+      showToast('Pedido calculado com sucesso.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Não foi possível calcular o pedido.', 'error');
+    }
+  });
 }
 
-async function submitOrder() {
-  try {
-    const payload = buildOrderPayload();
-    const result = await apiRequest('/orders', { method: 'POST', auth: true, retryOn401: true, body: payload });
-    state.cart = [];
-    state.currentQuote = result;
-    renderCart();
-    showToast('Pedido enviado com sucesso.', 'success');
-  } catch (error) {
-    showToast(error.message || 'Não foi possível finalizar o pedido.', 'error');
-  }
+async function submitOrder(event) {
+  await runWithButtonLoading(event?.currentTarget || el.submitOrderBtn, 'Enviando pedido...', async () => {
+    try {
+      const payload = buildOrderPayload();
+      const result = await apiRequest('/orders', { method: 'POST', auth: true, retryOn401: true, body: payload });
+      state.cart = [];
+      state.currentQuote = result;
+      renderCart();
+      showToast('Pedido enviado com sucesso.', 'success');
+      openOrdersModal().catch(() => {});
+    } catch (error) {
+      showToast(error.message || 'Não foi possível finalizar o pedido.', 'error');
+    }
+  });
 }
 
 function buildOrderPayload() {
@@ -1118,12 +1241,17 @@ async function openEditAddressModal(addressId) {
 }
 
 async function openAddressModal() {
+  if (!state.addresses.length) {
+    await openAddressFormModal();
+    return;
+  }
   toggleModal('addressModal', true);
   renderAddressList();
 }
 
 async function openAddressFormModal() {
   resetAddressForm();
+  toggleModal('addressModal', state.addresses.length > 0);
   toggleModal('addressFormModal', true);
   if (!state.states.length) {
     await loadStates().catch(() => {});
@@ -1160,9 +1288,11 @@ async function handleCityChange(clear=true) {
   if (clear) el.neighborhoodSelect.value = '';
 }
 
-async function saveAddress() {
-  try {
-    const payload = {
+async function saveAddress(event) {
+  const trigger = event?.currentTarget || el.saveAddressBtn;
+  await runWithButtonLoading(trigger, state.editingAddressId ? 'Salvando alterações...' : 'Salvando endereço...', async () => {
+    try {
+      const payload = {
       label: el.addressLabelInput.value.trim() || undefined,
       street: el.addressStreetInput.value.trim(),
       number: el.addressNumberInput.value.trim(),
@@ -1185,10 +1315,13 @@ async function saveAddress() {
     toggleModal('addressFormModal', false);
     toggleModal('addressModal', false);
     resetAddressForm();
-    showToast(isEditing ? 'Endereço alterado com sucesso.' : 'Endereço salvo com sucesso.', 'success');
-  } catch (error) {
-    showToast(error.message || 'Não foi possível salvar o endereço.', 'error');
-  }
+      state.needsAddressSetup = false;
+      renderRestaurantSections();
+      showToast(isEditing ? 'Endereço alterado com sucesso.' : 'Endereço salvo com sucesso.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Não foi possível salvar o endereço.', 'error');
+    }
+  });
 }
 
 function normalizeCatalogCategories(payload) {
@@ -1365,12 +1498,18 @@ async function apiRequest(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (options.auth && state.accessToken) headers.Authorization = `Bearer ${state.accessToken}`;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs || 20000);
   const response = await fetch(`/proxy${normalizedPath}`, {
     method: options.method || 'GET',
     headers,
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: options.body ? JSON.stringify(options.body) : undefined,
+    signal: controller.signal
   }).catch((error) => {
+    if (error.name === 'AbortError') throw new Error('A requisição demorou demais para responder.');
     throw new Error(error.message || 'Falha ao acessar a API.');
+  }).finally(() => {
+    clearTimeout(timeoutId);
   });
 
   let payload = null;

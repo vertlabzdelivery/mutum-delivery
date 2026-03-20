@@ -1,20 +1,21 @@
-# Painel do Usuário - Delivery
+# Mutum Delivery • Painel do cliente
 
-Painel web estático para o usuário fazer pedidos.
+Interface web do cliente para login, cadastro, endereços, vitrine dos restaurantes, carrinho e pedidos.
 
-## Recursos
-- login do usuário
-- listagem de endereços
-- restaurantes disponíveis por endereço
-- categorias e cardápio do restaurante
-- adicionais com cálculo em tempo real
-- envio de pedido com `selectedChoices` no formato correto da API
-- carrinho e resumo do pedido
+## Melhorias aplicadas
+- tela de boot para evitar flash da tela de login ao recarregar
+- loading visual em ações importantes
+- auto login após cadastro
+- abertura automática do cadastro de endereço quando a conta ainda não tem endereço
+- suporte a `/proxy/*` e `/api/proxy/*`
+- visual refinado com cards, sombras e estados mais claros
 
-## Rodar
-```bash
-npm install
-npm start
-```
+## Rodando localmente
+1. Crie um `.env` com:
+   `API_BASE_URL=http://localhost:3001`
+2. Instale dependências:
+   `npm install`
+3. Inicie:
+   `npm start`
 
-Abra `http://localhost:3020`.
+O painel abre por padrão na porta `3020`.

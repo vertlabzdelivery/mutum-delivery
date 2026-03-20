@@ -9,8 +9,8 @@ const API_BASE_URL = String(process.env.API_BASE_URL || 'http://localhost:3001')
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.all('/proxy/*', async (req, res) => {
-  const targetPath = req.originalUrl.replace(/^\/proxy/, '');
+app.all(['/proxy/*', '/api/proxy/*'], async (req, res) => {
+  const targetPath = req.originalUrl.replace(/^\/(api\/)?proxy/, '');
   const targetUrl = `${API_BASE_URL}${targetPath}`;
   const headers = { ...req.headers };
   delete headers.host;
@@ -36,6 +36,10 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Painel em http://localhost:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Painel em http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
