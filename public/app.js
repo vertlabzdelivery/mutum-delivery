@@ -28,7 +28,8 @@ const state = {
   authMode: 'login',
   orders: [],
   restaurantHoursById: {},
-  needsAddressSetup: false
+  needsAddressSetup: false,
+  mobileCartOpen: false
 };
 
 const el = {
@@ -90,6 +91,7 @@ const el = {
   deliveryNameInput: document.getElementById('deliveryNameInput'),
   deliveryPhoneInput: document.getElementById('deliveryPhoneInput'),
   orderNotesInput: document.getElementById('orderNotesInput'),
+  orderNotesHint: document.getElementById('orderNotesHint'),
   cartItems: document.getElementById('cartItems'),
   cartEmpty: document.getElementById('cartEmpty'),
   subtotalValue: document.getElementById('subtotalValue'),
@@ -125,7 +127,11 @@ const el = {
   bootSplash: document.getElementById('bootSplash'),
   bootSplashText: document.getElementById('bootSplashText'),
   globalLoader: document.getElementById('globalLoader'),
-  globalLoaderText: document.getElementById('globalLoaderText')
+  globalLoaderText: document.getElementById('globalLoaderText'),
+  mobileCartFab: document.getElementById('mobileCartFab'),
+  mobileCartCount: document.getElementById('mobileCartCount'),
+  mobileCartBackdrop: document.getElementById('mobileCartBackdrop'),
+  mobileCartCloseBtn: document.getElementById('mobileCartCloseBtn')
 };
 
 init();
@@ -134,7 +140,8 @@ async function init() {
   bindEvents();
   updateHeader();
   setAuthMode('login');
-  toggleCashChange();
+  updateOrderNotesHint();
+  handleViewportChange();
   try {
     if (state.accessToken) {
       await bootstrapAuthenticatedArea();
@@ -161,7 +168,7 @@ function bindEvents() {
   el.citySelect?.addEventListener('change', handleCityChange);
   el.saveAddressBtn?.addEventListener('click', saveAddress);
   el.openAddAddressBtn?.addEventListener('click', openAddressFormModal);
-  el.reloadBtn.addEventListener('click', async (event) => {
+  el.reloadBtn?.addEventListener('click', async (event) => {
     await runWithButtonLoading(event.currentTarget, 'Recarregando...', async () => {
       setGlobalLoading(true, 'Atualizando restaurantes e cardápio...');
       try {
@@ -184,7 +191,12 @@ function bindEvents() {
   el.cartItems.addEventListener('click', handleCartActions);
   el.quoteBtn?.addEventListener('click', quoteOrder);
   el.submitOrderBtn.addEventListener('click', submitOrder);
-  el.paymentMethodSelect.addEventListener('change', toggleCashChange);
+  el.paymentMethodSelect.addEventListener('change', updateOrderNotesHint);
+  el.mobileCartFab?.addEventListener('click', () => setMobileCartOpen(!state.mobileCartOpen));
+  el.mobileCartBackdrop?.addEventListener('click', () => setMobileCartOpen(false));
+  el.mobileCartCloseBtn?.addEventListener('click', () => setMobileCartOpen(false));
+  window.addEventListener('resize', handleViewportChange);
+  window.addEventListener('orientationchange', handleViewportChange);
   document.querySelectorAll('[data-close-modal]').forEach((button) => {
     button.addEventListener('click', () => toggleModal(button.dataset.closeModal, false));
   });
@@ -199,6 +211,47 @@ function setBooting(isBooting, message = 'Preparando sua experiência...') {
   document.body.classList.toggle('app-booting', isBooting);
   if (el.bootSplash) el.bootSplash.classList.toggle('hidden', !isBooting);
   if (el.bootSplashText) el.bootSplashText.textContent = message;
+}
+
+
+function isMobileViewport() {
+  return window.matchMedia('(max-width: 860px)').matches;
+}
+
+function handleViewportChange() {
+  if (!isMobileViewport()) {
+    state.mobileCartOpen = false;
+  }
+  document.body.classList.toggle('mobile-cart-open', Boolean(state.mobileCartOpen && isMobileViewport()));
+  renderCart();
+  updateHeaderAddress();
+}
+
+function setMobileCartOpen(isOpen) {
+  const canOpen = Boolean(isOpen && state.currentView === 'detail' && isMobileViewport());
+  state.mobileCartOpen = canOpen;
+  document.body.classList.toggle('mobile-cart-open', canOpen);
+  el.mobileCartBackdrop?.classList.toggle('hidden', !canOpen);
+  el.mobileCartFab?.setAttribute('aria-expanded', canOpen ? 'true' : 'false');
+}
+
+function updateMobileCartFab() {
+  const visible = state.currentView === 'detail' && isMobileViewport();
+  el.mobileCartFab?.classList.toggle('hidden', !visible);
+  if (!visible) {
+    el.mobileCartBackdrop?.classList.add('hidden');
+    document.body.classList.remove('mobile-cart-open');
+    return;
+  }
+  const count = state.cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  if (el.mobileCartCount) {
+    el.mobileCartCount.textContent = String(count);
+    el.mobileCartCount.classList.toggle('hidden', count <= 0);
+  }
+  const total = state.cart.reduce((sum, item) => sum + (Number(item.totalUnitPrice || 0) * Number(item.quantity || 0)), 0) + Number(state.deliveryFee || 0);
+  const label = count > 0 ? `Abrir carrinho com ${count} ${count === 1 ? 'item' : 'itens'} • total ${formatCurrency(total)}` : 'Abrir carrinho';
+  el.mobileCartFab?.setAttribute('aria-label', label);
+  el.mobileCartFab?.setAttribute('title', count > 0 ? `Carrinho • ${formatCurrency(total)}` : 'Carrinho');
 }
 
 function setGlobalLoading(isLoading, message = 'Aguarde um instante...') {
@@ -247,13 +300,14 @@ function updateHeader() {
 
 function updateHeaderAddress() {
   const address = state.addresses.find((item) => item.id === state.selectedAddressId);
-  if (address) {
-    el.headerAddressText.textContent = address.shortText;
-    return;
-  }
-  el.headerAddressText.textContent = state.currentUser
-    ? 'Cadastre seu endereço para começar a pedir.'
-    : 'Escolha um endereço para ver os restaurantes.';
+  const text = address
+    ? address.shortText
+    : (state.currentUser
+      ? 'Cadastre seu endereço para começar a pedir.'
+      : 'Escolha um endereço para ver os restaurantes.');
+  el.headerAddressText.textContent = text;
+  el.headerAddressBtn?.setAttribute('title', text);
+  el.headerAddressBtn?.setAttribute('aria-label', `Selecionar endereço. ${text}`);
 }
 
 function openProfileModal() {
@@ -294,20 +348,20 @@ async function openOrdersModal() {
   el.ordersList.innerHTML = orders.map(renderOrderCard).join('');
 }
 
-function handleOrdersListClick(event) {
+async function handleOrdersListClick(event) {
   const card = event.target.closest('.order-card');
   if (!card) return;
   const orderId = card.dataset.orderId;
   const order = state.orders.find((item) => String(item.id || item.orderId || item.uuid) === orderId);
   if (!order) return;
-  openOrderDetails(order);
+  await openOrderDetails(order);
 }
 
 function renderOrderCard(order) {
   const items = unwrapCollection(order.items || order.orderItems || []);
   const preview = items.slice(0, 3).map((item) => item.menuItemName || item.name || item.menuItem?.name).filter(Boolean).join(', ');
   const total = Number(order.totalAmount || order.total || order.grandTotal || 0);
-  const status = String(order.status || 'PENDENTE').replace(/_/g, ' ');
+  const status = translateOrderStatus(order.status || 'PENDING');
   const restaurant = order.restaurantName || order.restaurant?.name || 'Restaurante';
   const created = formatDateTime(order.createdAt || order.created_at || order.date);
   const orderId = String(order.id || order.orderId || order.uuid || '');
@@ -323,24 +377,19 @@ function renderOrderCard(order) {
   `;
 }
 
-function openOrderDetails(order) {
-  const items = unwrapCollection(order.items || order.orderItems || []);
-  const address = order.address || order.deliveryAddress || order.customerAddress || null;
-  const payment = order.paymentMethod || order.payment || 'Não informado';
-  const deliveryFee = Number(order.deliveryFee || order.fee || 0);
-  const subtotal = Number(order.subtotal || order.subTotal || order.itemsTotal || 0);
-  const total = Number(order.totalAmount || order.total || order.grandTotal || 0);
-  const status = String(order.status || 'PENDENTE').replace(/_/g, ' ');
-  const restaurant = order.restaurantName || order.restaurant?.name || 'Restaurante';
-  const created = formatDateTime(order.createdAt || order.created_at || order.date);
-  const addressText = [
-    address?.street,
-    address?.number,
-    address?.neighborhood?.name || address?.neighborhoodName,
-    address?.city?.name || address?.cityName,
-    address?.state?.uf || address?.stateUf
-  ].filter(Boolean).join(' • ');
+async function openOrderDetails(order) {
+  const detailedOrder = await fetchOrderDetails(order);
+  const items = unwrapCollection(detailedOrder.items || detailedOrder.orderItems || []);
+  const payment = translatePaymentMethod(detailedOrder.paymentMethod || detailedOrder.payment || '');
+  const deliveryFee = Number(detailedOrder.deliveryFee || detailedOrder.fee || 0);
+  const subtotal = Number(detailedOrder.subtotal || detailedOrder.subTotal || detailedOrder.itemsTotal || 0);
+  const total = Number(detailedOrder.totalAmount || detailedOrder.total || detailedOrder.grandTotal || 0);
+  const status = translateOrderStatus(detailedOrder.status || 'PENDING');
+  const restaurant = detailedOrder.restaurantName || detailedOrder.restaurant?.name || 'Restaurante';
+  const created = formatDateTime(detailedOrder.createdAt || detailedOrder.created_at || detailedOrder.date);
+  const addressText = extractOrderAddressText(detailedOrder);
 
+  setMobileCartOpen(false);
   el.orderDetailsContent.innerHTML = `
     <div class="order-details-card">
       <div class="order-details-head">
@@ -351,7 +400,7 @@ function openOrderDetails(order) {
         <span class="order-status-badge">${escapeHtml(status)}</span>
       </div>
       <div class="order-details-grid">
-        <div><span>Pagamento</span><strong>${escapeHtml(String(payment).replace(/_/g, ' '))}</strong></div>
+        <div><span>Pagamento</span><strong>${escapeHtml(payment || 'Não informado')}</strong></div>
         <div><span>Entrega</span><strong>${escapeHtml(formatCurrency(deliveryFee))}</strong></div>
         <div><span>Subtotal</span><strong>${escapeHtml(formatCurrency(subtotal))}</strong></div>
         <div><span>Total</span><strong>${escapeHtml(formatCurrency(total))}</strong></div>
@@ -362,12 +411,65 @@ function openOrderDetails(order) {
       </div>
       <div class="order-details-block">
         <h4>Entrega</h4>
-        <p>${escapeHtml(addressText || order.deliveryAddressText || 'Endereço não informado.')}</p>
+        <p>${escapeHtml(addressText || 'Endereço não informado.')}</p>
       </div>
-      ${order.notes || order.observations ? `<div class="order-details-block"><h4>Observações</h4><p>${escapeHtml(order.notes || order.observations)}</p></div>` : ''}
+      ${detailedOrder.notes || detailedOrder.observations ? `<div class="order-details-block"><h4>Observações</h4><p>${escapeHtml(detailedOrder.notes || detailedOrder.observations)}</p></div>` : ''}
     </div>
   `;
   toggleModal('orderDetailsModal', true);
+}
+
+async function fetchOrderDetails(order) {
+  const orderId = order?.id || order?.orderId || order?.uuid;
+  if (!orderId || !state.accessToken) return order;
+  try {
+    const detailed = await apiRequest(`/orders/${orderId}`, { auth: true, retryOn401: true });
+    return detailed || order;
+  } catch (error) {
+    return order;
+  }
+}
+
+function extractOrderAddressText(order) {
+  const address = order.address || order.deliveryAddress || order.customerAddress || null;
+  const compactAddress = [
+    address?.street || order.deliveryStreet,
+    address?.number || order.deliveryNumber,
+    address?.complement || order.deliveryComplement,
+    address?.reference || order.deliveryReference,
+    address?.neighborhood?.name || address?.neighborhoodName || address?.district || order.deliveryDistrict,
+    address?.city?.name || address?.cityName || order.deliveryCity,
+    address?.state?.uf || address?.stateUf || address?.state?.code || order.deliveryState,
+    address?.zipCode || order.deliveryZipCode
+  ].filter(Boolean);
+
+  return compactAddress.join(' • ') || order.deliveryAddressText || '';
+}
+
+function translatePaymentMethod(value) {
+  const payment = String(value || '').toUpperCase();
+  const map = {
+    CASH: 'Dinheiro',
+    PIX: 'PIX',
+    CREDIT_CARD: 'Cartão de crédito',
+    DEBIT_CARD: 'Cartão de débito'
+  };
+  return map[payment] || String(value || '').replace(/_/g, ' ');
+}
+
+function translateOrderStatus(value) {
+  const status = String(value || '').toUpperCase();
+  const map = {
+    PENDING: 'Pendente',
+    ACCEPTED: 'Aceito',
+    PREPARING: 'Preparando',
+    DELIVERY: 'Saiu para entrega',
+    DELIVERED: 'Entregue',
+    CANCELED: 'Cancelado',
+    CANCELLED: 'Cancelado',
+    REJECTED: 'Recusado'
+  };
+  return map[status] || String(value || '').replace(/_/g, ' ');
 }
 
 function renderOrderDetailItem(item) {
@@ -376,7 +478,7 @@ function renderOrderDetailItem(item) {
   const notes = item.notes || item.observations || '';
   const lineTotal = Number(item.totalPrice || item.total || item.lineTotal || 0);
   const choices = unwrapCollection(item.selectedChoices || item.choices || item.selections || []);
-  const choicesText = choices.map((choice) => choice.choiceName || choice.name || choice.choice?.name).filter(Boolean).join(', ');
+  const choicesText = choices.map((choice) => choice.choiceName || choice.name || choice.choice?.name || choice.selectionName).filter(Boolean).join(', ');
   return `
     <article class="order-detail-item">
       <div class="order-detail-item-head">
@@ -398,6 +500,7 @@ function formatDateTime(value) {
 
 function showAuthOnly() {
   setGlobalLoading(false);
+  setMobileCartOpen(false);
   el.authSection.classList.remove('hidden');
   el.appSection.classList.add('hidden');
 }
@@ -564,10 +667,10 @@ async function loadRestaurantsByAddress() {
     }));
   const zonesByRestaurant = new Map(zoneEntries);
 
-  const hourEntries = await Promise.all(sameCityRestaurants.map(async (restaurant) => {
-    const hours = await fetchRestaurantHours(restaurant.id);
+  const hourEntries = sameCityRestaurants.map((restaurant) => {
+    const hours = normalizeOpeningHours(restaurant.hours || restaurant.openingHours || []);
     return [restaurant.id, hours];
-  }));
+  });
   state.restaurantHoursById = Object.fromEntries(hourEntries);
 
   state.restaurants = sameCityRestaurants.map((restaurant) => {
@@ -733,7 +836,6 @@ function renderRestaurantCard(restaurant, bucketKey) {
       <div class="restaurant-card-body">
         <div class="restaurant-card-head">
           <h4>${escapeHtml(restaurant.name)}</h4>
-          <span class="rating-mini">${escapeHtml(String(restaurant.rating || 5))} ★</span>
         </div>
         <div class="restaurant-card-sub">${escapeHtml(categories)} • $</div>
         <div class="restaurant-inline-meta">${deliveryText} • ${escapeHtml(timeText)} • ${escapeHtml(restaurant.isCurrentlyOpen ? 'Aberto' : 'Fechado')}</div>
@@ -757,7 +859,7 @@ function renderSelectedRestaurant() {
   el.restaurantSubtitle.textContent = restaurant.categoryNames?.length
     ? `${restaurant.categoryNames.join(', ')} • $`
     : (restaurant.description || 'Cardápio do restaurante');
-  el.restaurantRatingBadge.textContent = `${restaurant.rating || 5} ★`;
+  if (el.restaurantRatingBadge) el.restaurantRatingBadge.textContent = '';
   el.restaurantFeeMeta.innerHTML = restaurant.isAvailableForAddress
     ? (restaurant.deliveryFee > 0 ? formatCurrency(restaurant.deliveryFee) : '<span class="delivery-free">GRÁTIS</span>')
     : 'Não entrega no seu bairro';
@@ -800,7 +902,6 @@ function renderMenu() {
       <div class="menu-section-head">
         <div>
           <h3>${escapeHtml(category.name)}</h3>
-          ${category.description ? `<p>${escapeHtml(category.description)}</p>` : ''}
         </div>
       </div>
       <div class="menu-grid">
@@ -1052,9 +1153,20 @@ function addCurrentItemToCart() {
 }
 
 function renderCart() {
-  el.cartColumn.classList.toggle('hidden', !state.cart.length || state.currentView !== 'detail');
+  const shouldShowCart = state.currentView === 'detail' && (isMobileViewport() || state.cart.length > 0);
+  if (!shouldShowCart) {
+    setMobileCartOpen(false);
+  }
+  el.cartColumn.classList.toggle('hidden', !shouldShowCart);
   if (!state.cart.length) {
     el.cartItems.innerHTML = '';
+    el.cartEmpty.innerHTML = `
+      <div class="cart-empty-state">
+        <div class="cart-empty-emoji" aria-hidden="true">🛒</div>
+        <strong>Seu carrinho está vazio</strong>
+        <p>Navegue pelo cardápio e escolha seus itens preferidos.</p>
+      </div>
+    `;
     el.cartEmpty.classList.remove('hidden');
   } else {
     el.cartEmpty.classList.add('hidden');
@@ -1082,6 +1194,7 @@ function renderCart() {
   el.subtotalValue.textContent = formatCurrency(subtotal);
   el.deliveryFeeValue.textContent = formatCurrency(state.deliveryFee || 0);
   el.totalValue.textContent = formatCurrency(total);
+  updateMobileCartFab();
 }
 
 function handleCartActions(event) {
@@ -1116,6 +1229,7 @@ async function submitOrder(event) {
       const result = await apiRequest('/orders', { method: 'POST', auth: true, retryOn401: true, body: payload });
       state.cart = [];
       state.currentQuote = result;
+      setMobileCartOpen(false);
       renderCart();
       showToast('Pedido enviado com sucesso.', 'success');
       openOrdersModal().catch(() => {});
@@ -1135,9 +1249,9 @@ function buildOrderPayload() {
   const paymentMethod = el.paymentMethodSelect.value;
   const subtotal = state.cart.reduce((sum, item) => sum + (item.totalUnitPrice * item.quantity), 0);
   const orderTotal = subtotal + Number(state.deliveryFee || 0);
-  const cashChangeFor = paymentMethod === 'CASH' && el.cashChangeInput.value ? Number(el.cashChangeInput.value) : undefined;
+  const cashChangeFor = paymentMethod === 'CASH' ? parseCashChangeFromNotes(el.orderNotesInput.value) : undefined;
   if (paymentMethod === 'CASH' && cashChangeFor !== undefined && cashChangeFor < orderTotal) {
-    throw new Error('O valor para troco precisa ser maior ou igual ao total do pedido.');
+    throw new Error('O valor informado para troco nas observações precisa ser maior ou igual ao total do pedido.');
   }
 
   const payload = {
@@ -1167,10 +1281,28 @@ function fillDeliveryFields() {
   if (!el.deliveryPhoneInput.value) el.deliveryPhoneInput.value = state.currentUser?.phone || '';
 }
 
-function toggleCashChange() {
+function updateOrderNotesHint() {
   const isCash = el.paymentMethodSelect.value === 'CASH';
-  el.cashChangeWrap.classList.toggle('hidden', !isCash);
-  if (!isCash) el.cashChangeInput.value = '';
+  if (el.cashChangeInput) el.cashChangeInput.value = '';
+  if (el.cashChangeWrap) el.cashChangeWrap.classList.add('hidden');
+  if (!el.orderNotesInput) return;
+  const placeholder = isCash
+    ? 'Precisa de troco? Escreva aqui. Ex.: Troco para 100. Também use este campo para observações do pedido.'
+    : 'Alguma observação para o restaurante? Ex.: retirar cebola.';
+  el.orderNotesInput.placeholder = placeholder;
+  if (el.orderNotesHint) {
+    el.orderNotesHint.textContent = isCash
+      ? 'Pagando em dinheiro? Escreva aqui se precisa de troco. Ex.: Troco para 100.'
+      : 'Alguma observação para o restaurante? Ex.: retirar cebola.';
+  }
+}
+
+function parseCashChangeFromNotes(value) {
+  const text = String(value || '').replace(/,/g, '.');
+  const match = text.match(/troco\s*(?:para|p(?:ra)?)?\s*(?:r\$\s*)?(\d+(?:\.\d{1,2})?)/i);
+  if (!match) return undefined;
+  const amount = Number(match[1]);
+  return Number.isFinite(amount) ? amount : undefined;
 }
 
 async function handleAddressChange(addressId) {
@@ -1186,6 +1318,7 @@ async function handleAddressChange(addressId) {
 
 function openRestaurantListView(clearCart=false) {
   state.currentView = 'list';
+  setMobileCartOpen(false);
   if (clearCart) {
     state.cart = [];
     state.currentQuote = null;
@@ -1196,6 +1329,7 @@ function openRestaurantListView(clearCart=false) {
 
 function openRestaurantDetailView() {
   state.currentView = 'detail';
+  setMobileCartOpen(false);
   renderSelectedRestaurant();
   renderCart();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1394,23 +1528,26 @@ function normalizeOpeningHours(items) {
 async function fetchRestaurantHours(restaurantId) {
   if (!restaurantId) return [];
   const cached = state.restaurantHoursById?.[restaurantId];
-  if (Array.isArray(cached) && cached.length) return cached;
-  const candidates = [
-    `/restaurants/${restaurantId}/opening-hours`,
-    `/restaurants/${restaurantId}/hours`,
-    `/opening-hours/restaurant/${restaurantId}`,
-    `/restaurants/${restaurantId}`
-  ];
-  for (const path of candidates) {
-    try {
-      const result = await apiRequest(path, { auth: !!state.accessToken, retryOn401: false });
-      const source = Array.isArray(result) ? result : (result?.hours || result?.openingHours || result?.restaurant?.hours || result?.restaurant?.openingHours || []);
-      const normalized = normalizeOpeningHours(source);
-      if (normalized.length || path.endsWith(`/${restaurantId}`)) return normalized;
-    } catch (error) {}
+  if (Array.isArray(cached)) return cached;
+
+  const restaurantFromList = state.restaurants.find((item) => item.id === restaurantId);
+  const embeddedHours = normalizeOpeningHours(restaurantFromList?.hours || restaurantFromList?.openingHours || []);
+  if (embeddedHours.length) {
+    state.restaurantHoursById[restaurantId] = embeddedHours;
+    return embeddedHours;
   }
-  const localHours = readJson(`deliveryRestaurantPanel.openingHours.${restaurantId}`);
-  return normalizeOpeningHours(localHours || []);
+
+  try {
+    const result = await apiRequest(`/restaurants/${restaurantId}`, { auth: false, retryOn401: false });
+    const normalized = normalizeOpeningHours(result?.hours || result?.openingHours || result?.restaurant?.hours || result?.restaurant?.openingHours || []);
+    state.restaurantHoursById[restaurantId] = normalized;
+    return normalized;
+  } catch (error) {
+    const localHours = readJson(`deliveryRestaurantPanel.openingHours.${restaurantId}`);
+    const fallback = normalizeOpeningHours(localHours || []);
+    state.restaurantHoursById[restaurantId] = fallback;
+    return fallback;
+  }
 }
 
 function normalizeTime(value) {

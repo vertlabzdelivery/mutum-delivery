@@ -30,10 +30,10 @@
           <p>Peça do seu jeito</p>
         </div>
       </div>
-      <button id="headerAddressBtn" class="address-chip" type="button">
+      <button id="headerAddressBtn" class="address-chip" type="button" aria-label="Selecionar endereço">
         <div class="address-pin">📍</div>
         <div class="address-copy">
-          <strong>Onde entregar?</strong>
+          <strong>Entrega</strong>
           <span id="headerAddressText">Escolha um endereço para ver os restaurantes.</span>
         </div>
       </button>
@@ -44,8 +44,8 @@
       <div id="headerUser" class="user-chip hidden">
         <button id="profileBtn" class="user-avatar-btn" type="button" aria-label="Abrir perfil"><div class="user-avatar">👤</div></button>
         <strong id="headerUserName"></strong>
-        <button id="ordersBtn" class="ghost-btn small topbar-btn" type="button">Pedidos</button>
-                <button id="logoutBtn" class="ghost-btn small topbar-btn" type="button">Sair</button>
+        <button id="ordersBtn" class="ghost-btn small topbar-btn" type="button" aria-label="Ver pedidos" title="Pedidos"><span class="btn-icon" aria-hidden="true">🧾</span><span class="btn-label">Pedidos</span></button>
+        <button id="logoutBtn" class="ghost-btn small topbar-btn" type="button" aria-label="Sair" title="Sair"><span class="btn-icon" aria-hidden="true">↪</span><span class="btn-label">Sair</span></button>
       </div>
     </div>
   </header>
@@ -113,7 +113,6 @@
         <div id="selectedRestaurantPanel" class="panel restaurant-hero hidden">
           <div class="restaurant-page-actions">
             <button id="backToRestaurantsBtn" class="ghost-btn" type="button">← Voltar aos restaurantes</button>
-            <button id="reloadBtn" class="ghost-btn" type="button">Recarregar</button>
           </div>
           <div class="restaurant-hero-main">
             <div class="restaurant-hero-logo-box">
@@ -123,7 +122,6 @@
             <div class="restaurant-hero-copy">
               <div class="hero-top-line">
                 <h2 id="restaurantTitle">Selecione um restaurante</h2>
-                <span id="restaurantRatingBadge" class="rating-badge">5 ★</span>
               </div>
               <p id="restaurantSubtitle" class="muted"></p>
               <div class="restaurant-meta-row">
@@ -140,13 +138,7 @@
         </div>
 
         <div class="panel categories-panel hidden" id="categoriesPanel">
-          <div class="section-head compact-head">
-            <div>
-              <h3>Categorias</h3>
-              <p class="muted">Escolha a seção do cardápio.</p>
-            </div>
-          </div>
-          <div id="categoryTabs" class="category-tabs"></div>
+          <div id="categoryTabs" class="category-tabs" aria-label="Categorias do cardápio"></div>
         </div>
 
         <div class="panel menu-panel hidden" id="menuPanel">
@@ -165,11 +157,12 @@
 
       <aside id="cartColumn" class="cart-column hidden">
         <div class="panel cart-panel sticky-panel">
-          <div class="section-head compact-head">
+          <div class="section-head compact-head cart-panel-head">
             <div>
               <h3>Carrinho</h3>
               <p class="muted">Resumo com adicionais e total calculado.</p>
             </div>
+            <button id="mobileCartCloseBtn" class="icon-btn mobile-cart-close" type="button" aria-label="Fechar carrinho">✕</button>
           </div>
 
           <label>
@@ -182,10 +175,9 @@
             </select>
           </label>
 
-          <label id="cashChangeWrap">
-            <span>Troco para</span>
-            <input id="cashChangeInput" type="number" min="0" step="0.01" placeholder="0,00" />
-          </label>
+          <div id="cashChangeWrap" class="hidden" aria-hidden="true">
+            <input id="cashChangeInput" type="hidden" value="" />
+          </div>
 
           <label>
             <span>Nome para entrega</span>
@@ -199,7 +191,8 @@
 
           <label>
             <span>Observações do pedido</span>
-            <textarea id="orderNotesInput" rows="3"></textarea>
+            <small id="orderNotesHint" class="field-hint">Alguma observação para o restaurante? Ex.: retirar cebola.</small>
+            <textarea id="orderNotesInput" rows="3" placeholder="Alguma observação para o restaurante? Ex.: retirar cebola."></textarea>
           </label>
 
           <div id="cartItems" class="cart-items"></div>
@@ -218,6 +211,12 @@
       </aside>
     </section>
   </main>
+
+  <button id="mobileCartFab" class="mobile-cart-fab hidden" type="button" aria-label="Abrir carrinho" aria-expanded="false">
+    <span class="mobile-cart-fab-icon" aria-hidden="true">🛒</span>
+    <span id="mobileCartCount" class="mobile-cart-fab-count hidden">0</span>
+  </button>
+  <div id="mobileCartBackdrop" class="mobile-cart-backdrop hidden" aria-hidden="true"></div>
 
   <div id="configModal" class="modal hidden">
     <div class="modal-card small-modal">
