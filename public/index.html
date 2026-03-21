@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mutum Delivery • Usuário</title>
+  <title>UaiPede • Usuário</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body class="app-booting">
   <div id="bootSplash" class="boot-splash">
     <div class="boot-card">
       <div class="boot-spinner" aria-hidden="true"></div>
-      <strong>Carregando o Mutum Delivery</strong>
+      <strong>Carregando o UaiPede</strong>
       <span id="bootSplashText">Preparando sua sessão e os restaurantes disponíveis.</span>
     </div>
   </div>
@@ -24,9 +24,9 @@
   <header class="topbar">
     <div class="topbar-left">
       <div class="brand">
-        <div class="brand-mark">MD</div>
+        <div class="brand-mark">UP</div>
         <div class="brand-copy">
-          <h1>Mutum Delivery</h1>
+          <h1>UaiPede</h1>
           <p>Peça do seu jeito</p>
         </div>
       </div>
@@ -117,7 +117,7 @@
           <div class="restaurant-hero-main">
             <div class="restaurant-hero-logo-box">
               <img id="restaurantLogo" class="restaurant-hero-logo hidden" alt="Logo do restaurante" />
-              <div id="restaurantLogoFallback" class="restaurant-hero-logo-fallback">MD</div>
+              <div id="restaurantLogoFallback" class="restaurant-hero-logo-fallback">UP</div>
             </div>
             <div class="restaurant-hero-copy">
               <div class="hero-top-line">
@@ -248,8 +248,12 @@
         <div class="profile-data">
           <div><strong>Nome</strong><span id="profileName">-</span></div>
           <div><strong>Telefone</strong><span id="profilePhone">-</span></div>
+          <div><strong>Telefone verificado</strong><span id="profilePhoneStatus">Não</span></div>
           <div><strong>Endereço atual</strong><span id="profileAddress">-</span></div>
         </div>
+      </div>
+      <div class="form-actions">
+        <button id="openPhoneVerificationFromProfileBtn" class="primary-btn" type="button">Verificar ou trocar telefone</button>
       </div>
     </div>
   </div>
@@ -276,9 +280,14 @@
         <button class="icon-btn" data-close-modal="addressFormModal" type="button">✕</button>
       </div>
       <div class="stack-form">
-        <div class="field-grid two-col">
+        <div class="field-grid one-col">
           <label><span>Apelido</span><input id="addressLabelInput" type="text" placeholder="Casa" /></label>
-          <label><span>CEP</span><input id="addressZipInput" type="text" placeholder="36950-000" /></label>
+          <input id="addressZipInput" type="hidden" value="" />
+        </div>
+        <div class="field-grid three-col">
+          <label><span>Estado</span><select id="stateSelect"></select></label>
+          <label><span>Cidade</span><select id="citySelect"></select></label>
+          <label><span>Bairro</span><select id="neighborhoodSelect"></select></label>
         </div>
         <div class="field-grid two-col">
           <label><span>Rua</span><input id="addressStreetInput" type="text" /></label>
@@ -287,11 +296,6 @@
         <div class="field-grid two-col">
           <label><span>Complemento</span><input id="addressComplementInput" type="text" /></label>
           <label><span>Referência</span><input id="addressReferenceInput" type="text" /></label>
-        </div>
-        <div class="field-grid three-col">
-          <label><span>Estado</span><select id="stateSelect"></select></label>
-          <label><span>Cidade</span><select id="citySelect"></select></label>
-          <label><span>Bairro</span><select id="neighborhoodSelect"></select></label>
         </div>
         <label class="checkbox-inline"><input id="addressDefaultInput" type="checkbox" checked /> <span>Definir como principal</span></label>
         <div class="form-actions">
@@ -315,7 +319,7 @@
         <div class="item-modal-main">
           <div class="item-cover-row">
             <img id="itemModalImage" class="item-modal-image hidden" alt="Imagem do produto" />
-            <div id="itemModalImageFallback" class="item-modal-image-fallback">MD</div>
+            <div id="itemModalImageFallback" class="item-modal-image-fallback">UP</div>
             <div>
               <div class="price-big" id="itemBasePrice">R$ 0,00</div>
               <div id="itemBadges" class="tag-row"></div>
@@ -362,6 +366,34 @@
         <button class="icon-btn" data-close-modal="orderDetailsModal" type="button">✕</button>
       </div>
       <div id="orderDetailsContent" class="order-details"></div>
+    </div>
+  </div>
+
+
+  <div id="phoneVerificationModal" class="modal hidden">
+    <div class="modal-card small-modal">
+      <div class="modal-head">
+        <h3>Confirmar telefone</h3>
+        <button class="icon-btn" data-close-modal="phoneVerificationModal" type="button">✕</button>
+      </div>
+      <div class="stack-form">
+        <p id="phoneVerificationMessage" class="muted">Vamos confirmar seu telefone antes de finalizar o pedido.</p>
+        <label>
+          <span>Telefone</span>
+          <input id="phoneVerificationPhoneInput" type="text" placeholder="(00) 00000-0000" />
+        </label>
+        <div class="form-actions">
+          <button id="sendPhoneVerificationBtn" class="ghost-btn" type="button">Enviar código</button>
+        </div>
+        <label>
+          <span>Código recebido</span>
+          <input id="phoneVerificationCodeInput" type="text" placeholder="Digite o código" />
+        </label>
+        <div class="form-actions">
+          <button id="confirmPhoneVerificationBtn" class="primary-btn" type="button">Confirmar código</button>
+        </div>
+        <p class="field-hint">Vamos enviar um código por SMS. Você pode trocar o número antes de solicitar o código.</p>
+      </div>
     </div>
   </div>
 

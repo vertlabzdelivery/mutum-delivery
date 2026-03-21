@@ -4,7 +4,12 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3020;
-const API_BASE_URL = String(process.env.API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
+function normalizeBaseUrl(value) {
+  const raw = String(value || 'http://localhost:3001').trim();
+  if (/^https?:\/\//i.test(raw)) return raw.replace(/\/$/, '');
+  return `https://${raw.replace(/\/$/, '')}`;
+}
+const API_BASE_URL = normalizeBaseUrl(process.env.API_BASE_URL || 'http://localhost:3001');
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));

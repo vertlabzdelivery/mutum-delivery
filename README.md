@@ -1,4 +1,4 @@
-# Mutum Delivery • Painel do cliente
+# UaiPede • Painel do cliente
 
 Interface web do cliente para login, cadastro, endereços, vitrine dos restaurantes, carrinho e pedidos.
 

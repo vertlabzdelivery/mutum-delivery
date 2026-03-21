@@ -29,7 +29,10 @@ const state = {
   orders: [],
   restaurantHoursById: {},
   needsAddressSetup: false,
-  mobileCartOpen: false
+  mobileCartOpen: false,
+  pendingOrderPayload: null,
+  currentPhoneVerificationId: '',
+  currentPhoneVerificationChannel: 'SMS'
 };
 
 const el = {
@@ -108,7 +111,9 @@ const el = {
   orderDetailsContent: document.getElementById('orderDetailsContent'),
   profileName: document.getElementById('profileName'),
   profilePhone: document.getElementById('profilePhone'),
+  profilePhoneStatus: document.getElementById('profilePhoneStatus'),
   profileAddress: document.getElementById('profileAddress'),
+  openPhoneVerificationFromProfileBtn: document.getElementById('openPhoneVerificationFromProfileBtn'),
   itemModal: document.getElementById('itemModal'),
   itemModalTitle: document.getElementById('itemModalTitle'),
   itemModalSubtitle: document.getElementById('itemModalSubtitle'),
@@ -131,7 +136,13 @@ const el = {
   mobileCartFab: document.getElementById('mobileCartFab'),
   mobileCartCount: document.getElementById('mobileCartCount'),
   mobileCartBackdrop: document.getElementById('mobileCartBackdrop'),
-  mobileCartCloseBtn: document.getElementById('mobileCartCloseBtn')
+  mobileCartCloseBtn: document.getElementById('mobileCartCloseBtn'),
+  phoneVerificationModal: document.getElementById('phoneVerificationModal'),
+  phoneVerificationMessage: document.getElementById('phoneVerificationMessage'),
+  phoneVerificationPhoneInput: document.getElementById('phoneVerificationPhoneInput'),
+  phoneVerificationCodeInput: document.getElementById('phoneVerificationCodeInput'),
+  sendPhoneVerificationBtn: document.getElementById('sendPhoneVerificationBtn'),
+  confirmPhoneVerificationBtn: document.getElementById('confirmPhoneVerificationBtn')
 };
 
 init();
@@ -160,6 +171,7 @@ function bindEvents() {
   el.showRegisterBtn?.addEventListener('click', () => setAuthMode('register'));
   el.logoutBtn?.addEventListener('click', () => logout(true));
   el.profileBtn?.addEventListener('click', openProfileModal);
+  el.openPhoneVerificationFromProfileBtn?.addEventListener('click', () => openPhoneVerificationModal());
   el.ordersBtn?.addEventListener('click', openOrdersModal);
   el.ordersList?.addEventListener('click', handleOrdersListClick);
   el.headerAddressBtn?.addEventListener('click', openAddressModal);
@@ -191,6 +203,8 @@ function bindEvents() {
   el.cartItems.addEventListener('click', handleCartActions);
   el.quoteBtn?.addEventListener('click', quoteOrder);
   el.submitOrderBtn.addEventListener('click', submitOrder);
+  el.sendPhoneVerificationBtn?.addEventListener('click', sendPhoneVerificationCode);
+  el.confirmPhoneVerificationBtn?.addEventListener('click', confirmPhoneVerificationCode);
   el.paymentMethodSelect.addEventListener('change', updateOrderNotesHint);
   el.mobileCartFab?.addEventListener('click', () => setMobileCartOpen(!state.mobileCartOpen));
   el.mobileCartBackdrop?.addEventListener('click', () => setMobileCartOpen(false));
@@ -314,8 +328,18 @@ function openProfileModal() {
   const address = state.addresses.find((item) => item.id === state.selectedAddressId);
   el.profileName.textContent = state.currentUser?.name || '-';
   el.profilePhone.textContent = state.currentUser?.phone || '-';
+  el.profilePhoneStatus.textContent = state.currentUser?.isPhoneVerified || state.currentUser?.phoneVerifiedAt ? 'Sim' : 'Não';
   el.profileAddress.textContent = address?.labelText || 'Nenhum endereço selecionado';
   toggleModal('profileModal', true);
+}
+
+function openPhoneVerificationModal(prefillPhone) {
+  el.phoneVerificationPhoneInput.value = prefillPhone || state.currentUser?.phone || el.deliveryPhoneInput?.value || '';
+  el.phoneVerificationCodeInput.value = '';
+  el.phoneVerificationMessage.textContent = 'Vamos confirmar seu telefone antes de finalizar o pedido.';
+  state.currentPhoneVerificationId = '';
+  state.currentPhoneVerificationChannel = 'SMS';
+  toggleModal('phoneVerificationModal', true);
 }
 
 
@@ -1226,15 +1250,85 @@ async function submitOrder(event) {
   await runWithButtonLoading(event?.currentTarget || el.submitOrderBtn, 'Enviando pedido...', async () => {
     try {
       const payload = buildOrderPayload();
-      const result = await apiRequest('/orders', { method: 'POST', auth: true, retryOn401: true, body: payload });
-      state.cart = [];
-      state.currentQuote = result;
-      setMobileCartOpen(false);
-      renderCart();
-      showToast('Pedido enviado com sucesso.', 'success');
-      openOrdersModal().catch(() => {});
+      if (!(state.currentUser?.isPhoneVerified || state.currentUser?.phoneVerifiedAt)) {
+        state.pendingOrderPayload = payload;
+        openPhoneVerificationModal(payload.deliveryPhone);
+        showToast('Confirme seu telefone antes do primeiro pedido.', 'info');
+        return;
+      }
+      await finalizeOrderPayload(payload);
     } catch (error) {
+      if (String(error?.message || '').toLowerCase().includes('telefone precisa ser verificado')) {
+        state.pendingOrderPayload = null;
+        try { state.pendingOrderPayload = buildOrderPayload(); } catch {}
+        openPhoneVerificationModal(el.deliveryPhoneInput?.value || state.currentUser?.phone || '');
+        showToast('Confirme seu telefone para concluir o pedido.', 'info');
+        return;
+      }
       showToast(error.message || 'Não foi possível finalizar o pedido.', 'error');
+    }
+  });
+}
+
+async function finalizeOrderPayload(payload) {
+  const result = await apiRequest('/orders', { method: 'POST', auth: true, retryOn401: true, body: payload });
+  state.cart = [];
+  state.currentQuote = result;
+  state.pendingOrderPayload = null;
+  setMobileCartOpen(false);
+  renderCart();
+  toggleModal('phoneVerificationModal', false);
+  showToast('Pedido enviado com sucesso.', 'success');
+  openOrdersModal().catch(() => {});
+}
+
+async function sendPhoneVerificationCode(event) {
+  await runWithButtonLoading(event?.currentTarget || el.sendPhoneVerificationBtn, 'Enviando...', async () => {
+    try {
+      const result = await apiRequest('/auth/phone-verification/start', {
+        method: 'POST',
+        auth: true,
+        retryOn401: true,
+        body: { phone: el.phoneVerificationPhoneInput.value.trim(), channel: 'SMS' }
+      });
+      state.currentPhoneVerificationId = result.verificationId;
+      state.currentPhoneVerificationChannel = result.channel || 'SMS';
+      el.phoneVerificationMessage.textContent = result.message || 'Código enviado com sucesso.';
+      showToast(result.message || 'Código enviado.', 'success');
+      await loadCurrentUser();
+    } catch (error) {
+      showToast(error.message || 'Não foi possível enviar o código.', 'error');
+    }
+  });
+}
+
+async function confirmPhoneVerificationCode(event) {
+  await runWithButtonLoading(event?.currentTarget || el.confirmPhoneVerificationBtn, 'Confirmando...', async () => {
+    try {
+      if (!state.currentPhoneVerificationId) throw new Error('Envie o código primeiro.');
+      const result = await apiRequest('/auth/phone-verification/confirm', {
+        method: 'POST',
+        auth: true,
+        retryOn401: true,
+        body: { verificationId: state.currentPhoneVerificationId, code: el.phoneVerificationCodeInput.value.trim() }
+      });
+      if (result.user) {
+        state.currentUser = normalizeUser(result.user);
+        localStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify(state.currentUser));
+      } else {
+        await loadCurrentUser();
+      }
+      updateHeader();
+      showToast(result.message || 'Telefone confirmado com sucesso.', 'success');
+      if (state.pendingOrderPayload) {
+        const pending = state.pendingOrderPayload;
+        state.pendingOrderPayload = null;
+        await finalizeOrderPayload(pending);
+      } else {
+        toggleModal('phoneVerificationModal', false);
+      }
+    } catch (error) {
+      showToast(error.message || 'Código inválido.', 'error');
     }
   });
 }
@@ -1432,13 +1526,13 @@ async function saveAddress(event) {
       number: el.addressNumberInput.value.trim(),
       complement: el.addressComplementInput.value.trim() || undefined,
       reference: el.addressReferenceInput.value.trim() || undefined,
-      zipCode: el.addressZipInput.value.trim(),
+      zipCode: undefined,
       cityId: el.citySelect.value,
       neighborhoodId: el.neighborhoodSelect.value,
       isDefault: el.addressDefaultInput.checked
     };
-    if (!payload.street || !payload.number || !payload.zipCode || !payload.cityId || !payload.neighborhoodId) {
-      throw new Error(state.editingAddressId ? 'Preencha os campos do endereço.' : 'Preencha os campos do novo endereço.');
+    if (!payload.street || payload.street.length < 6 || !payload.number || !payload.cityId || !payload.neighborhoodId) {
+      throw new Error(state.editingAddressId ? 'Preencha corretamente os campos do endereço.' : 'Preencha corretamente os campos do novo endereço.');
     }
     const path = state.editingAddressId ? `/addresses/${state.editingAddressId}` : '/addresses';
     const method = state.editingAddressId ? 'PATCH' : 'POST';
@@ -1603,7 +1697,9 @@ function normalizeUser(item) {
     id: item.id || item.userId || '',
     name: item.name || '',
     email: item.email || '',
-    phone: item.phone || ''
+    phone: item.phone || '',
+    phoneVerifiedAt: item.phoneVerifiedAt || null,
+    isPhoneVerified: Boolean(item.isPhoneVerified || item.phoneVerifiedAt)
   };
 }
 
