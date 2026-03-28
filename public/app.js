@@ -2,7 +2,8 @@ const STORAGE_KEYS = {
   accessToken: 'delivery_user_access_token',
   refreshToken: 'delivery_user_refresh_token',
   currentUser: 'delivery_user_current_user',
-  apiBaseUrl: 'delivery_user_api_base_url'
+  apiBaseUrl: 'delivery_user_api_base_url',
+  theme: 'delivery_user_theme'
 };
 
 const state = {
@@ -32,7 +33,8 @@ const state = {
   mobileCartOpen: false,
   pendingOrderPayload: null,
   currentPhoneVerificationId: '',
-  currentPhoneVerificationChannel: 'SMS'
+  currentPhoneVerificationChannel: 'SMS',
+  theme: localStorage.getItem(STORAGE_KEYS.theme) || 'light'
 };
 
 const el = {
@@ -53,6 +55,9 @@ const el = {
   headerUserName: document.getElementById('headerUserName'),
   headerAddressBtn: document.getElementById('headerAddressBtn'),
   headerAddressText: document.getElementById('headerAddressText'),
+  themeToggleBtn: document.getElementById('themeToggleBtn'),
+  themeToggleText: document.getElementById('themeToggleText'),
+  themeToggleIcon: document.getElementById('themeToggleIcon'),
   addressModal: document.getElementById('addressModal'),
   addressList: document.getElementById('addressList'),
   openAddAddressBtn: document.getElementById('openAddAddressBtn'),
@@ -149,6 +154,7 @@ init();
 
 async function init() {
   bindEvents();
+  applyTheme(state.theme);
   updateHeader();
   setAuthMode('login');
   updateOrderNotesHint();
@@ -175,6 +181,7 @@ function bindEvents() {
   el.ordersBtn?.addEventListener('click', openOrdersModal);
   el.ordersList?.addEventListener('click', handleOrdersListClick);
   el.headerAddressBtn?.addEventListener('click', openAddressModal);
+  el.themeToggleBtn?.addEventListener('click', toggleTheme);
   el.backToRestaurantsBtn?.addEventListener('click', () => openRestaurantListView(true));
   el.stateSelect?.addEventListener('change', handleStateChange);
   el.citySelect?.addEventListener('change', handleCityChange);
@@ -221,6 +228,28 @@ function bindEvents() {
 }
 
 
+
+function applyTheme(theme) {
+  const normalizedTheme = theme === 'dark' ? 'dark' : 'light';
+  state.theme = normalizedTheme;
+  document.documentElement.setAttribute('data-theme', normalizedTheme);
+  localStorage.setItem(STORAGE_KEYS.theme, normalizedTheme);
+  if (el.themeToggleText) {
+    el.themeToggleText.textContent = normalizedTheme === 'dark' ? 'Modo claro' : 'Modo escuro';
+  }
+  if (el.themeToggleIcon) {
+    el.themeToggleIcon.textContent = normalizedTheme === 'dark' ? '☀️' : '🌙';
+  }
+  if (el.themeToggleBtn) {
+    const actionText = normalizedTheme === 'dark' ? 'Ativar modo claro' : 'Ativar modo escuro';
+    el.themeToggleBtn.setAttribute('aria-label', actionText);
+    el.themeToggleBtn.setAttribute('title', actionText);
+  }
+}
+
+function toggleTheme() {
+  applyTheme(state.theme === 'dark' ? 'light' : 'dark');
+}
 function setBooting(isBooting, message = 'Preparando sua experiência...') {
   document.body.classList.toggle('app-booting', isBooting);
   if (el.bootSplash) el.bootSplash.classList.toggle('hidden', !isBooting);

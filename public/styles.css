@@ -14,6 +14,17 @@
   --shadow: 0 8px 22px rgba(35, 24, 21, 0.08);
   --shadow-soft: 0 4px 10px rgba(35, 24, 21, 0.06);
 }
+
+:root[data-theme="dark"] {
+  --bg: #141113;
+  --panel: #1f1a1d;
+  --panel-soft: #2a2327;
+  --border: #3f3439;
+  --text: #f5ece9;
+  --muted: #c9b7b0;
+  --shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
+  --shadow-soft: 0 6px 16px rgba(0, 0, 0, 0.26);
+}
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -119,6 +130,29 @@ button, input, textarea, select { font: inherit; }
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.2);
+  background: rgba(255,255,255,.16);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.theme-toggle-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.22);
+}
+
+.theme-toggle-btn span[aria-hidden="true"] {
+  line-height: 1;
 }
 
 .header-guest {
@@ -1409,12 +1443,14 @@ button:disabled {
 
   #headerUserName,
   .topbar-btn .btn-label,
-  #logoutBtn .btn-label {
+  #logoutBtn .btn-label,
+  #themeToggleText {
     display: none !important;
   }
 
   .user-avatar-btn,
-  .topbar-btn {
+  .topbar-btn,
+  .theme-toggle-btn {
     width: 40px !important;
     min-width: 40px !important;
     height: 40px !important;
