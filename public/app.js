@@ -32,7 +32,9 @@ const state = {
   mobileCartOpen: false,
   pendingOrderPayload: null,
   currentPhoneVerificationId: '',
-  currentPhoneVerificationChannel: 'SMS'
+  currentPhoneVerificationChannel: 'SMS',
+  passwordRecoverySessionId: '',
+  passwordRecoveryResetToken: ''
 };
 
 const el = {
@@ -142,7 +144,21 @@ const el = {
   phoneVerificationPhoneInput: document.getElementById('phoneVerificationPhoneInput'),
   phoneVerificationCodeInput: document.getElementById('phoneVerificationCodeInput'),
   sendPhoneVerificationBtn: document.getElementById('sendPhoneVerificationBtn'),
-  confirmPhoneVerificationBtn: document.getElementById('confirmPhoneVerificationBtn')
+  confirmPhoneVerificationBtn: document.getElementById('confirmPhoneVerificationBtn'),
+  openForgotPasswordBtn: document.getElementById('openForgotPasswordBtn'),
+  passwordRecoveryModal: document.getElementById('passwordRecoveryModal'),
+  passwordRecoveryMessage: document.getElementById('passwordRecoveryMessage'),
+  passwordRecoveryPhoneStep: document.getElementById('passwordRecoveryPhoneStep'),
+  passwordRecoveryCodeStep: document.getElementById('passwordRecoveryCodeStep'),
+  passwordRecoveryResetStep: document.getElementById('passwordRecoveryResetStep'),
+  passwordRecoveryPhoneInput: document.getElementById('passwordRecoveryPhoneInput'),
+  passwordRecoveryCodeInput: document.getElementById('passwordRecoveryCodeInput'),
+  passwordRecoveryNewPasswordInput: document.getElementById('passwordRecoveryNewPasswordInput'),
+  passwordRecoveryConfirmPasswordInput: document.getElementById('passwordRecoveryConfirmPasswordInput'),
+  sendPasswordRecoveryCodeBtn: document.getElementById('sendPasswordRecoveryCodeBtn'),
+  resendPasswordRecoveryCodeBtn: document.getElementById('resendPasswordRecoveryCodeBtn'),
+  confirmPasswordRecoveryCodeBtn: document.getElementById('confirmPasswordRecoveryCodeBtn'),
+  resetPasswordBtn: document.getElementById('resetPasswordBtn')
 };
 
 init();
@@ -169,6 +185,11 @@ function bindEvents() {
   el.registerForm?.addEventListener('submit', handleRegister);
   el.showLoginBtn?.addEventListener('click', () => setAuthMode('login'));
   el.showRegisterBtn?.addEventListener('click', () => setAuthMode('register'));
+  el.openForgotPasswordBtn?.addEventListener('click', openPasswordRecoveryModal);
+  el.sendPasswordRecoveryCodeBtn?.addEventListener('click', handlePasswordRecoverySendCode);
+  el.resendPasswordRecoveryCodeBtn?.addEventListener('click', handlePasswordRecoverySendCode);
+  el.confirmPasswordRecoveryCodeBtn?.addEventListener('click', handlePasswordRecoveryConfirmCode);
+  el.resetPasswordBtn?.addEventListener('click', handlePasswordRecoveryResetPassword);
   el.logoutBtn?.addEventListener('click', () => logout(true));
   el.profileBtn?.addEventListener('click', openProfileModal);
   el.openPhoneVerificationFromProfileBtn?.addEventListener('click', () => openPhoneVerificationModal());
@@ -342,6 +363,122 @@ function openPhoneVerificationModal(prefillPhone) {
   toggleModal('phoneVerificationModal', true);
 }
 
+
+
+function setPasswordRecoveryStep(step) {
+  el.passwordRecoveryPhoneStep?.classList.toggle('hidden', step !== 'phone');
+  el.passwordRecoveryCodeStep?.classList.toggle('hidden', step !== 'code');
+  el.passwordRecoveryResetStep?.classList.toggle('hidden', step !== 'password');
+}
+
+function openPasswordRecoveryModal() {
+  state.passwordRecoverySessionId = '';
+  state.passwordRecoveryResetToken = '';
+  if (el.passwordRecoveryPhoneInput) el.passwordRecoveryPhoneInput.value = '';
+  if (el.passwordRecoveryCodeInput) el.passwordRecoveryCodeInput.value = '';
+  if (el.passwordRecoveryNewPasswordInput) el.passwordRecoveryNewPasswordInput.value = '';
+  if (el.passwordRecoveryConfirmPasswordInput) el.passwordRecoveryConfirmPasswordInput.value = '';
+  if (el.passwordRecoveryMessage) {
+    el.passwordRecoveryMessage.textContent = 'Informe o telefone verificado da conta para receber um código por SMS.';
+  }
+  setPasswordRecoveryStep('phone');
+  toggleModal('passwordRecoveryModal', true);
+}
+
+async function handlePasswordRecoverySendCode(event) {
+  const phone = el.passwordRecoveryPhoneInput?.value?.trim() || '';
+  if (phone.replace(/\D/g, '').length < 10) {
+    showToast('Informe um telefone válido com DDD.', 'error');
+    return;
+  }
+
+  try {
+    await runWithButtonLoading(event.currentTarget, 'Enviando...', async () => {
+      const result = await apiRequest('/auth/password-recovery/start', {
+        method: 'POST',
+        retryOn401: false,
+        body: { phone },
+      });
+
+      state.passwordRecoverySessionId = result.sessionId || '';
+      state.passwordRecoveryResetToken = '';
+      if (el.passwordRecoveryPhoneInput) el.passwordRecoveryPhoneInput.value = result.phone || phone;
+      if (el.passwordRecoveryMessage) {
+        el.passwordRecoveryMessage.textContent = result.message || 'Código enviado por SMS.';
+      }
+      setPasswordRecoveryStep('code');
+      showToast('Código enviado por SMS.', 'success');
+    });
+  } catch (error) {
+    showToast(error?.message || 'Não foi possível enviar o código.', 'error');
+  }
+}
+
+async function handlePasswordRecoveryConfirmCode(event) {
+  if (!state.passwordRecoverySessionId) {
+    showToast('Solicite um código antes de continuar.', 'error');
+    return;
+  }
+
+  const code = el.passwordRecoveryCodeInput?.value?.trim() || '';
+  if (code.length < 4) {
+    showToast('Digite o código recebido por SMS.', 'error');
+    return;
+  }
+
+  try {
+    await runWithButtonLoading(event.currentTarget, 'Confirmando...', async () => {
+      const result = await apiRequest('/auth/password-recovery/confirm', {
+        method: 'POST',
+        retryOn401: false,
+        body: { sessionId: state.passwordRecoverySessionId, code },
+      });
+
+      state.passwordRecoveryResetToken = result.resetToken || '';
+      if (el.passwordRecoveryMessage) {
+        el.passwordRecoveryMessage.textContent = result.message || 'Código confirmado. Agora defina sua nova senha.';
+      }
+      setPasswordRecoveryStep('password');
+      showToast('Código confirmado.', 'success');
+    });
+  } catch (error) {
+    showToast(error?.message || 'Não foi possível validar o código.', 'error');
+  }
+}
+
+async function handlePasswordRecoveryResetPassword(event) {
+  const newPassword = el.passwordRecoveryNewPasswordInput?.value || '';
+  const confirmPassword = el.passwordRecoveryConfirmPasswordInput?.value || '';
+
+  if (!state.passwordRecoveryResetToken) {
+    showToast('Confirme o código antes de alterar a senha.', 'error');
+    return;
+  }
+  if (newPassword.length < 8) {
+    showToast('A nova senha precisa ter pelo menos 8 caracteres.', 'error');
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    showToast('As senhas não conferem.', 'error');
+    return;
+  }
+
+  try {
+    await runWithButtonLoading(event.currentTarget, 'Salvando...', async () => {
+      const result = await apiRequest('/auth/password-recovery/reset', {
+        method: 'POST',
+        retryOn401: false,
+        body: { resetToken: state.passwordRecoveryResetToken, newPassword },
+      });
+
+      toggleModal('passwordRecoveryModal', false);
+      setAuthMode('login');
+      showToast(result.message || 'Senha alterada com sucesso.', 'success');
+    });
+  } catch (error) {
+    showToast(error?.message || 'Não foi possível alterar a senha.', 'error');
+  }
+}
 
 async function openOrdersModal() {
   if (!state.accessToken) return;

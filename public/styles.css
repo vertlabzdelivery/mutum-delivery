@@ -1456,3 +1456,17 @@ button:disabled {
     border-radius: 11px !important;
   }
 }
+
+
+.text-link-btn {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--red);
+  font-weight: 800;
+  justify-self: end;
+  cursor: pointer;
+}
+.text-link-btn:hover {
+  text-decoration: underline;
+}

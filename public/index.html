@@ -72,6 +72,7 @@
                 <span>Senha</span>
                 <input name="password" type="password" required />
               </label>
+              <button id="openForgotPasswordBtn" class="text-link-btn" type="button">Esqueci a senha</button>
               <button class="primary-btn" type="submit">Entrar</button>
             </form>
           </div>
@@ -393,6 +394,56 @@
           <button id="confirmPhoneVerificationBtn" class="primary-btn" type="button">Confirmar código</button>
         </div>
         <p class="field-hint">Vamos enviar um código por SMS. Você pode trocar o número antes de solicitar o código.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="passwordRecoveryModal" class="modal hidden">
+    <div class="modal-card small-modal">
+      <div class="modal-head">
+        <h3>Recuperar senha</h3>
+        <button class="icon-btn" data-close-modal="passwordRecoveryModal" type="button">✕</button>
+      </div>
+      <div class="stack-form">
+        <p id="passwordRecoveryMessage" class="muted">Informe o telefone verificado da conta para receber um código por SMS.</p>
+
+        <div id="passwordRecoveryPhoneStep" class="stack-form">
+          <label>
+            <span>Telefone</span>
+            <input id="passwordRecoveryPhoneInput" type="text" placeholder="(00) 00000-0000" />
+          </label>
+          <div class="form-actions">
+            <button id="sendPasswordRecoveryCodeBtn" class="primary-btn" type="button">Enviar código</button>
+          </div>
+        </div>
+
+        <div id="passwordRecoveryCodeStep" class="stack-form hidden">
+          <label>
+            <span>Código recebido</span>
+            <input id="passwordRecoveryCodeInput" type="text" placeholder="Digite o código" />
+          </label>
+          <div class="form-actions">
+            <button id="confirmPasswordRecoveryCodeBtn" class="primary-btn" type="button">Confirmar código</button>
+            <button id="resendPasswordRecoveryCodeBtn" class="ghost-btn" type="button">Enviar novamente</button>
+          </div>
+        </div>
+
+        <div id="passwordRecoveryResetStep" class="stack-form hidden">
+          <label>
+            <span>Nova senha</span>
+            <input id="passwordRecoveryNewPasswordInput" type="password" placeholder="Mínimo de 8 caracteres" />
+          </label>
+          <label>
+            <span>Confirmar nova senha</span>
+            <input id="passwordRecoveryConfirmPasswordInput" type="password" placeholder="Repita a nova senha" />
+          </label>
+          <div class="form-actions">
+            <button id="resetPasswordBtn" class="primary-btn" type="button">Salvar nova senha</button>
+          </div>
+        </div>
+
+        <p class="field-hint">A recuperação funciona somente para contas que já tenham um telefone verificado.</p>
       </div>
     </div>
   </div>
