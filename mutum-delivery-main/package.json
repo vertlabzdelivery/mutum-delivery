@@ -1,0 +1,14 @@
+{
+  "name": "delivery-user-panel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Painel do usuário para pedidos de delivery",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5"
+  }
+}
