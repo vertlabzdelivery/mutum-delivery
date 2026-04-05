@@ -34,7 +34,7 @@ const state = {
   currentPhoneVerificationId: '',
   currentPhoneVerificationChannel: 'SMS',
   passwordRecoverySessionId: '',
-  passwordRecoveryResetToken: '',
+  passwordRecoveryResetToken: ''
 };
 
 const el = {
@@ -575,6 +575,7 @@ async function openOrderDetails(order) {
         <p>${escapeHtml(addressText || 'Endereço não informado.')}</p>
       </div>
       ${detailedOrder.notes || detailedOrder.observations ? `<div class="order-details-block"><h4>Observações</h4><p>${escapeHtml(detailedOrder.notes || detailedOrder.observations)}</p></div>` : ''}
+      ${(() => { if (detailedOrder.status !== 'CANCELED') return ''; const h = Array.isArray(detailedOrder.statusHistory) ? detailedOrder.statusHistory.find((e) => e.toStatus === 'CANCELED') : null; const r = h?.note; return r ? `<div class="order-details-block cancel-reason-block"><h4>Motivo do cancelamento</h4><p>${escapeHtml(r)}</p></div>` : ''; })()}
     </div>
   `;
   toggleModal('orderDetailsModal', true);
@@ -843,25 +844,7 @@ async function loadRestaurantsByAddress() {
     const deliveryFee = Number(neighborhoodZone?.deliveryFee ?? previewZone?.deliveryFee ?? 0);
     const minTime = Number(neighborhoodZone?.minTime ?? previewZone?.minTime ?? 0);
     const maxTime = Number(neighborhoodZone?.maxTime ?? previewZone?.maxTime ?? 0);
-    const categoryNames = (() => {
-      // Tenta múltiplas origens — a API pode retornar as categorias em campos diferentes
-      const sources = [
-        restaurant.menuCategories,
-        matchingAvailable?.menuCategories,
-        restaurant.categories,
-        matchingAvailable?.categories,
-        restaurant.categoryNames,
-        matchingAvailable?.categoryNames,
-      ];
-      for (const src of sources) {
-        const list = unwrapCollection(src);
-        if (!list.length) continue;
-        // Pode ser array de strings ou array de objetos {id, name}
-        const names = list.map((item) => (typeof item === 'string' ? item : item?.name)).filter(Boolean);
-        if (names.length) return names;
-      }
-      return [];
-    })();
+    const categoryNames = unwrapCollection(restaurant.menuCategories || matchingAvailable?.menuCategories || []).map((item) => item.name).filter(Boolean);
     const isAvailableForAddress = Boolean(matchingAvailable || neighborhoodZone);
     const openInfo = getRestaurantOpenInfo(hours);
     const isCurrentlyOpen = restaurant.isActive && openInfo.isOpen;
@@ -1036,7 +1019,7 @@ function renderSelectedRestaurant() {
 
   el.restaurantTitle.textContent = restaurant.name || 'Restaurante';
   el.restaurantSubtitle.textContent = restaurant.categoryNames?.length
-    ? restaurant.categoryNames.slice(0, 4).join(' • ')
+    ? `${restaurant.categoryNames.join(', ')} • $`
     : (restaurant.description || 'Cardápio do restaurante');
   if (el.restaurantRatingBadge) el.restaurantRatingBadge.textContent = '';
   el.restaurantFeeMeta.innerHTML = restaurant.isAvailableForAddress
@@ -1045,14 +1028,7 @@ function renderSelectedRestaurant() {
   el.restaurantTimeMeta.textContent = restaurant.minTime && restaurant.maxTime ? `${restaurant.minTime}-${restaurant.maxTime}min` : '60-90min';
   el.restaurantStatusMeta.textContent = restaurant.isCurrentlyOpen ? 'Aberto' : 'Fechado';
   if (el.restaurantHoursMeta) el.restaurantHoursMeta.textContent = restaurant.hoursTodayLabel || 'Horário não informado';
-  // Pedido mínimo — atualiza quando o restaurante muda via painel
-  if (el.restaurantMinOrderMeta) {
-    el.restaurantMinOrderMeta.textContent = restaurant.minOrder > 0
-      ? `Pedido mín. ${formatCurrency(restaurant.minOrder)}`
-      : '';
-  }
 
-  // Logo — atualiza imediatamente quando o restaurante troca a logo pelo painel
   if (restaurant.logoUrl) {
     el.restaurantLogo.src = restaurant.logoUrl;
     el.restaurantLogo.classList.remove('hidden');
@@ -1758,15 +1734,13 @@ function normalizeRestaurant(item) {
     id: item.id,
     name: item.name || 'Restaurante',
     description: item.description || '',
-    logoUrl: item.logoUrl || item.logo_url || '',
+    logoUrl: item.logoUrl || '',
     address: item.address || '',
-    phone: item.phone || '',
-    minOrder: item.minOrder != null ? Number(item.minOrder) : null,
     isActive: item.isActive !== false,
     cityId: item.cityId || item.city?.id || '',
     cityLabel: [item.city?.name, item.city?.state?.code].filter(Boolean).join(' - '),
     hours: normalizeOpeningHours(item.hours || item.openingHours || []),
-    menuCategories: unwrapCollection(item.menuCategories || item.categories || []),
+    menuCategories: unwrapCollection(item.menuCategories || item.categories || [])
   };
 }
 
