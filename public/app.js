@@ -34,7 +34,10 @@ const state = {
   currentPhoneVerificationId: '',
   currentPhoneVerificationChannel: 'SMS',
   passwordRecoverySessionId: '',
-  passwordRecoveryResetToken: ''
+  passwordRecoveryResetToken: '',
+  couponsDashboard: null,
+  activeCouponValidation: null,
+  lastCouponValidatedCode: ''
 };
 
 const el = {
@@ -97,18 +100,26 @@ const el = {
   deliveryPhoneInput: document.getElementById('deliveryPhoneInput'),
   orderNotesInput: document.getElementById('orderNotesInput'),
   orderNotesHint: document.getElementById('orderNotesHint'),
+  couponCodeInput: document.getElementById('couponCodeInput'),
+  applyCouponBtn: document.getElementById('applyCouponBtn'),
+  clearCouponBtn: document.getElementById('clearCouponBtn'),
+  couponFeedback: document.getElementById('couponFeedback'),
   cartItems: document.getElementById('cartItems'),
   cartEmpty: document.getElementById('cartEmpty'),
   subtotalValue: document.getElementById('subtotalValue'),
   deliveryFeeValue: document.getElementById('deliveryFeeValue'),
+  discountValue: document.getElementById('discountValue'),
   totalValue: document.getElementById('totalValue'),
   quoteBtn: document.getElementById('quoteBtn'),
   submitOrderBtn: document.getElementById('submitOrderBtn'),
   configModal: document.getElementById('configModal'),
   profileModal: document.getElementById('profileModal'),
   ordersBtn: document.getElementById('ordersBtn'),
+  couponsBtn: document.getElementById('couponsBtn'),
   ordersModal: document.getElementById('ordersModal'),
   ordersList: document.getElementById('ordersList'),
+  couponsModal: document.getElementById('couponsModal'),
+  couponsContent: document.getElementById('couponsContent'),
   orderDetailsModal: document.getElementById('orderDetailsModal'),
   orderDetailsContent: document.getElementById('orderDetailsContent'),
   profileName: document.getElementById('profileName'),
@@ -194,7 +205,9 @@ function bindEvents() {
   el.profileBtn?.addEventListener('click', openProfileModal);
   el.openPhoneVerificationFromProfileBtn?.addEventListener('click', () => openPhoneVerificationModal());
   el.ordersBtn?.addEventListener('click', openOrdersModal);
+  el.couponsBtn?.addEventListener('click', openCouponsModal);
   el.ordersList?.addEventListener('click', handleOrdersListClick);
+  el.couponsContent?.addEventListener('click', handleCouponsPanelClick);
   el.headerAddressBtn?.addEventListener('click', openAddressModal);
   el.backToRestaurantsBtn?.addEventListener('click', () => openRestaurantListView(true));
   el.stateSelect?.addEventListener('change', handleStateChange);
@@ -223,6 +236,9 @@ function bindEvents() {
   el.addToCartBtn.addEventListener('click', addCurrentItemToCart);
   el.cartItems.addEventListener('click', handleCartActions);
   el.quoteBtn?.addEventListener('click', quoteOrder);
+  el.applyCouponBtn?.addEventListener('click', applyCouponPreview);
+  el.clearCouponBtn?.addEventListener('click', clearCouponState);
+  el.couponCodeInput?.addEventListener('input', handleCouponInputChanged);
   el.submitOrderBtn.addEventListener('click', submitOrder);
   el.sendPhoneVerificationBtn?.addEventListener('click', sendPhoneVerificationCode);
   el.confirmPhoneVerificationBtn?.addEventListener('click', confirmPhoneVerificationCode);
@@ -352,6 +368,382 @@ function openProfileModal() {
   el.profilePhoneStatus.textContent = state.currentUser?.isPhoneVerified || state.currentUser?.phoneVerifiedAt ? 'Sim' : 'Não';
   el.profileAddress.textContent = address?.labelText || 'Nenhum endereço selecionado';
   toggleModal('profileModal', true);
+}
+
+async function openCouponsModal() {
+  if (!state.accessToken || !state.currentUser) {
+    showToast('Entre na sua conta para ver seus cupons.', 'info');
+    return;
+  }
+  toggleModal('couponsModal', true);
+  if (el.couponsContent) {
+    el.couponsContent.innerHTML = '<div class="empty">Carregando seus cupons...</div>';
+  }
+  try {
+    await loadCouponsDashboard();
+  } catch (error) {
+    if (el.couponsContent) {
+      el.couponsContent.innerHTML = `<div class="empty">${escapeHtml(error.message || 'Não foi possível carregar seus cupons agora.')}</div>`;
+    }
+  }
+}
+
+async function loadCouponsDashboard(force = false) {
+  if (!state.accessToken) throw new Error('Sessão não encontrada.');
+  if (state.couponsDashboard && !force) {
+    renderCouponsDashboard();
+    return state.couponsDashboard;
+  }
+
+  const [referralCodeResult, rewardsResult, historyResult, publicCouponsResult] = await Promise.all([
+    apiRequest('/me/referral-code', { auth: true, retryOn401: true }).catch(() => ({ referralCode: null })),
+    apiRequest('/me/referral-rewards', { auth: true, retryOn401: true }).catch(() => ({ summary: {}, data: [] })),
+    apiRequest('/me/referral-history', { auth: true, retryOn401: true }).catch(() => ({ referredUsers: [], usedReferrals: [] })),
+    apiRequest('/coupons/public?limit=20', { retryOn401: false }).catch(() => ({ data: [], pagination: null }))
+  ]);
+
+  state.couponsDashboard = {
+    referralCode: referralCodeResult?.referralCode || referralCodeResult?.code || null,
+    rewardsSummary: rewardsResult?.summary || {},
+    rewards: unwrapCollection(rewardsResult?.data || rewardsResult),
+    history: historyResult || { referredUsers: [], usedReferrals: [] },
+    publicCoupons: unwrapCollection(publicCouponsResult),
+    publicPagination: publicCouponsResult?.pagination || null
+  };
+  renderCouponsDashboard();
+  return state.couponsDashboard;
+}
+
+function renderCouponsDashboard() {
+  if (!el.couponsContent) return;
+  const dashboard = state.couponsDashboard || {};
+  const referralCode = dashboard.referralCode || state.currentUser?.referralCode || '';
+  const rewards = Array.isArray(dashboard.rewards) ? dashboard.rewards : [];
+  const summary = dashboard.rewardsSummary || {};
+  const publicCoupons = Array.isArray(dashboard.publicCoupons) ? dashboard.publicCoupons : [];
+  const history = dashboard.history || {};
+  const availableRewards = rewards.filter((item) => String(item.status || '').toUpperCase() === 'AVAILABLE');
+  const pendingRewards = rewards.filter((item) => String(item.status || '').toUpperCase() === 'PENDING');
+  const usedRewards = rewards.filter((item) => String(item.status || '').toUpperCase() === 'USED');
+  const referredUsers = Array.isArray(history.referredUsers) ? history.referredUsers : [];
+  const usedReferrals = Array.isArray(history.usedReferrals) ? history.usedReferrals : [];
+
+  el.couponsContent.innerHTML = `
+    <section class="coupon-modal-layout">
+      <article class="coupon-hero-card">
+        <div>
+          <span class="coupon-section-eyebrow">Seu código de indicação</span>
+          <h4>${escapeHtml(referralCode || 'Ainda não disponível')}</h4>
+          <p>Compartilhe seu código. Quando um novo cliente fizer o primeiro pedido com ele, você ganha um cupom de recompensa para usar depois.</p>
+        </div>
+        <div class="coupon-hero-actions">
+          <button class="primary-btn" type="button" data-copy-referral-code="${escapeAttribute(referralCode)}" ${referralCode ? '' : 'disabled'}>Copiar código</button>
+          <button class="ghost-btn" type="button" data-refresh-coupons>Atualizar</button>
+        </div>
+      </article>
+
+      <article class="coupon-card">
+        <div class="section-head compact-head">
+          <div>
+            <h4>Cupons promocionais do momento</h4>
+            <p class="muted">Descontos públicos criados pelo administrador.</p>
+          </div>
+        </div>
+        <div class="coupon-list">
+          ${publicCoupons.length ? publicCoupons.map(renderPublicCouponCard).join('') : '<div class="empty">Nenhum cupom ativo no momento.</div>'}
+        </div>
+      </article>
+
+      <div class="coupon-grid-two">
+        <article class="coupon-card">
+          <div class="section-head compact-head">
+            <div>
+              <h4>Cupons liberados para você</h4>
+              <p class="muted">Use estes códigos no checkout quando quiser.</p>
+            </div>
+          </div>
+          <div class="coupon-list">
+            ${availableRewards.length ? availableRewards.map(renderRewardCouponCard).join('') : '<div class="empty">Você ainda não tem cupons liberados.</div>'}
+          </div>
+        </article>
+
+        <article class="coupon-card">
+          <div class="section-head compact-head">
+            <div>
+              <h4>Histórico de indicações</h4>
+              <p class="muted">Acompanhe quem já gerou recompensa e quais cupons ainda estão em processamento.</p>
+            </div>
+          </div>
+          <div class="coupon-list compact-list">
+            ${referredUsers.length ? referredUsers.map(renderReferralOwnerHistoryCard).join('') : '<div class="empty">Você ainda não tem indicações registradas.</div>'}
+          </div>
+        </article>
+      </div>
+
+      <article class="coupon-card coupon-stats-card">
+        <div class="coupon-mini-stats">
+          <div><span>Liberados</span><strong>${escapeHtml(summary.available ?? availableRewards.length)}</strong></div>
+          <div><span>Aguardando computar</span><strong>${escapeHtml(summary.pending ?? pendingRewards.length)}</strong></div>
+          <div><span>Indicações confirmadas</span><strong>${escapeHtml(referredUsers.length)}</strong></div>
+          <div><span>Cupons usados</span><strong>${escapeHtml(summary.used ?? usedRewards.length)}</strong></div>
+          <div><span>Você já usou um código</span><strong>${escapeHtml(usedReferrals.length ? 'Sim' : 'Não')}</strong></div>
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+function renderPublicCouponCard(coupon) {
+  const code = coupon.code || '';
+  const remaining = Number(coupon.remainingUses ?? Math.max(0, Number(coupon.maxUses || 0) - Number(coupon.usedCount || 0)));
+  const discountLabel = coupon.discountType === 'FIXED'
+    ? formatCurrency(coupon.discountValue || 0)
+    : `${Number(coupon.discountValue || 0)}%`;
+  const capLabel = Number(coupon.maxDiscountAmount || 0) > 0 ? `até ${formatCurrency(coupon.maxDiscountAmount)}` : 'sem teto';
+  const minimum = Number(coupon.minOrderAmount || 0) > 0 ? `Pedido mínimo ${formatCurrency(coupon.minOrderAmount)}` : 'Sem pedido mínimo';
+  const validity = coupon.endsAt ? `Válido até ${formatDateTime(coupon.endsAt)}` : 'Sem data de expiração';
+  return `
+    <article class="coupon-item-card promotional">
+      <div class="coupon-item-head">
+        <strong>${escapeHtml(code)}</strong>
+        <span class="coupon-chip">${escapeHtml(discountLabel)}</span>
+      </div>
+      <div class="coupon-item-meta">${escapeHtml(capLabel)} • ${escapeHtml(minimum)}</div>
+      <div class="coupon-item-meta">${escapeHtml(validity)}</div>
+      <div class="coupon-item-foot">
+        <span>${escapeHtml(`${remaining} uso(s) disponível(is)`)}</span>
+        <button class="ghost-btn small" type="button" data-fill-coupon="${escapeAttribute(code)}">Usar no pedido</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderRewardCouponCard(reward) {
+  const code = reward.code || '';
+  const discountLabel = reward.discountType === 'FIXED'
+    ? formatCurrency(reward.discountValue || 0)
+    : `${Number(reward.discountValue || 0)}%`;
+  const capLabel = Number(reward.maxDiscountAmount || 0) > 0 ? `até ${formatCurrency(reward.maxDiscountAmount)}` : 'sem teto';
+  const sourceName = reward.referralUsage?.referredUser?.name ? `Gerado pela indicação de ${reward.referralUsage.referredUser.name}` : 'Recompensa de indicação confirmada';
+  return `
+    <article class="coupon-item-card reward">
+      <div class="coupon-item-head">
+        <strong>${escapeHtml(code)}</strong>
+        <span class="coupon-chip">${escapeHtml(discountLabel)}</span>
+      </div>
+      <div class="coupon-item-meta">${escapeHtml(sourceName)}</div>
+      <div class="coupon-item-meta">Desconto ${escapeHtml(capLabel)}</div>
+      <div class="coupon-item-foot">
+        <span>Disponível para uso</span>
+        <button class="ghost-btn small" type="button" data-fill-coupon="${escapeAttribute(code)}">Usar no pedido</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderReferralOwnerHistoryCard(item) {
+  const status = translateReferralUsageStatus(item.status || 'PENDING');
+  const rewardStatus = translateReferralRewardStatus(item.reward?.status || 'PENDING');
+  const name = item.referredUser?.name || 'Cliente indicado';
+  const granted = item.reward?.grantedAt ? ` • Cupom liberado em ${formatDateTime(item.reward.grantedAt)}` : '';
+  return `
+    <article class="referral-history-card">
+      <strong>${escapeHtml(name)}</strong>
+      <div class="coupon-item-meta">${escapeHtml(status)} • Recompensa ${escapeHtml(rewardStatus)}</div>
+      <div class="coupon-item-meta">Código usado: ${escapeHtml(item.referralCodeUsed || item.referralCode || 'Código de indicação')} ${escapeHtml(granted)}</div>
+    </article>
+  `;
+}
+
+function handleCouponsPanelClick(event) {
+  const refreshBtn = event.target.closest('[data-refresh-coupons]');
+  if (refreshBtn) {
+    loadCouponsDashboard(true).catch((error) => showToast(error.message || 'Não foi possível atualizar os cupons.', 'error'));
+    return;
+  }
+  const copyBtn = event.target.closest('[data-copy-referral-code]');
+  if (copyBtn) {
+    const code = String(copyBtn.dataset.copyReferralCode || '').trim();
+    if (!code) return;
+    copyText(code, 'Seu código foi copiado.');
+    return;
+  }
+  const fillBtn = event.target.closest('[data-fill-coupon]');
+  if (fillBtn) {
+    const code = String(fillBtn.dataset.fillCoupon || '').trim();
+    if (!code) return;
+    if (el.couponCodeInput) {
+      el.couponCodeInput.value = code;
+      state.lastCouponValidatedCode = '';
+      state.activeCouponValidation = null;
+      renderCart();
+    }
+    toggleModal('couponsModal', false);
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    showToast(`Cupom ${code} pronto para uso no checkout.`, 'success');
+  }
+}
+
+async function copyText(value, successMessage = 'Código copiado.') {
+  try {
+    if (!value) throw new Error('Nada para copiar.');
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+    } else {
+      const temp = document.createElement('textarea');
+      temp.value = value;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand('copy');
+      temp.remove();
+    }
+    showToast(successMessage, 'success');
+  } catch (error) {
+    showToast('Não foi possível copiar o código agora.', 'error');
+  }
+}
+
+function normalizeCouponCodeLocal(value) {
+  return String(value || '').replace(/\s+/g, '').toUpperCase();
+}
+
+function handleCouponInputChanged(event) {
+  const normalized = normalizeCouponCodeLocal(event?.target?.value || '');
+  if (event?.target && event.target.value !== normalized) event.target.value = normalized;
+  if (!normalized) {
+    state.activeCouponValidation = null;
+    state.lastCouponValidatedCode = '';
+    renderCart();
+    return;
+  }
+  if (normalized !== state.lastCouponValidatedCode) {
+    state.activeCouponValidation = null;
+    renderCart();
+  }
+}
+
+function getCurrentCouponCode() {
+  return normalizeCouponCodeLocal(el.couponCodeInput?.value || '');
+}
+
+function getCartSubtotal() {
+  return state.cart.reduce((sum, item) => sum + (item.totalUnitPrice * item.quantity), 0);
+}
+
+function getCouponDiscountAmount() {
+  if (state.activeCouponValidation?.valid) return Number(state.activeCouponValidation.discountAmount || 0);
+  if (state.currentQuote?.couponCode) return Number(state.currentQuote.discountAmount || 0);
+  return 0;
+}
+
+function invalidateCouponPreview() {
+  if (!getCurrentCouponCode()) {
+    state.activeCouponValidation = null;
+    state.lastCouponValidatedCode = '';
+    state.currentQuote = null;
+    return;
+  }
+  state.activeCouponValidation = null;
+  state.lastCouponValidatedCode = '';
+  state.currentQuote = null;
+}
+
+function clearCouponState(notify = false) {
+  if (el.couponCodeInput) el.couponCodeInput.value = '';
+  state.activeCouponValidation = null;
+  state.lastCouponValidatedCode = '';
+  state.currentQuote = null;
+  renderCart();
+  if (notify) showToast('Cupom removido do checkout.', 'info');
+}
+
+async function applyCouponPreview(event) {
+  await runWithButtonLoading(event?.currentTarget || el.applyCouponBtn, 'Validando...', async () => {
+    const couponCode = getCurrentCouponCode();
+    if (!couponCode) {
+      state.activeCouponValidation = null;
+      state.lastCouponValidatedCode = '';
+      renderCart();
+      showToast('Digite um cupom para validar.', 'info');
+      return;
+    }
+    if (!state.accessToken) throw new Error('Entre na sua conta para usar cupons.');
+    if (!state.selectedRestaurant?.id) throw new Error('Selecione um restaurante primeiro.');
+    const subtotal = getCartSubtotal();
+    if (!subtotal) throw new Error('Adicione itens ao carrinho antes de validar o cupom.');
+
+    try {
+      const result = await apiRequest('/coupons/validate', {
+        method: 'POST',
+        auth: true,
+        retryOn401: true,
+        body: {
+          couponCode,
+          restaurantId: state.selectedRestaurant.id,
+          subtotal,
+          deliveryFee: Number(state.deliveryFee || 0)
+        }
+      });
+      state.activeCouponValidation = result;
+      state.lastCouponValidatedCode = couponCode;
+      state.currentQuote = null;
+      renderCart();
+      if (result?.valid) {
+        showToast(result.message || 'Cupom validado com sucesso.', 'success');
+      } else {
+        showToast(result?.message || 'Este cupom não pode ser aplicado agora.', 'error');
+      }
+    } catch (error) {
+      state.activeCouponValidation = { valid: false, couponCode, message: error.message || 'Não foi possível validar o cupom agora.' };
+      renderCart();
+      throw error;
+    }
+  });
+}
+
+function renderCouponFeedback() {
+  if (!el.couponFeedback) return;
+  const couponCode = getCurrentCouponCode();
+  if (!couponCode) {
+    el.couponFeedback.innerHTML = '<span>Nenhum cupom aplicado no momento.</span>';
+    el.couponFeedback.className = 'coupon-feedback';
+    return;
+  }
+  const validation = state.activeCouponValidation;
+  if (validation?.valid && normalizeCouponCodeLocal(validation.couponCode) === couponCode) {
+    const label = validation.type === 'PROMOTIONAL'
+      ? 'Cupom promocional válido'
+      : validation.type === 'REFERRAL_REWARD'
+        ? 'Cupom de recompensa válido'
+        : 'Cupom de indicação válido';
+    el.couponFeedback.innerHTML = `<strong>${escapeHtml(label)}</strong><span>${escapeHtml(validation.message || 'Desconto pronto para uso.')}</span>`;
+    el.couponFeedback.className = 'coupon-feedback success';
+    return;
+  }
+  if (validation && normalizeCouponCodeLocal(validation.couponCode) === couponCode) {
+    el.couponFeedback.innerHTML = `<strong>Não foi possível aplicar</strong><span>${escapeHtml(validation.message || 'Revise o cupom informado.')}</span>`;
+    el.couponFeedback.className = 'coupon-feedback error';
+    return;
+  }
+  if (state.currentQuote?.couponCode && normalizeCouponCodeLocal(state.currentQuote.couponCode) === couponCode) {
+    el.couponFeedback.innerHTML = `<strong>Cupom pronto para o pedido</strong><span>O desconto já entrou no resumo do checkout.</span>`;
+    el.couponFeedback.className = 'coupon-feedback success';
+    return;
+  }
+  el.couponFeedback.innerHTML = '<span>Valide o cupom para ver o desconto antes de finalizar.</span>';
+  el.couponFeedback.className = 'coupon-feedback';
+}
+
+function translateReferralUsageStatus(value) {
+  const map = { PENDING: 'Aguardando computar', CONFIRMED: 'Indicação confirmada', CANCELED: 'Cancelada', CANCELLED: 'Cancelada', USED: 'Usada' };
+  const key = String(value || '').toUpperCase();
+  return map[key] || key || 'Pendente';
+}
+
+function translateReferralRewardStatus(value) {
+  const map = { PENDING: 'pendente', AVAILABLE: 'liberada', USED: 'usada', CANCELED: 'cancelada', CANCELLED: 'cancelada' };
+  const key = String(value || '').toUpperCase();
+  return map[key] || key.toLowerCase() || 'pendente';
 }
 
 function openPhoneVerificationModal(prefillPhone) {
@@ -526,6 +918,8 @@ function renderOrderCard(order) {
   const restaurant = order.restaurantName || order.restaurant?.name || 'Restaurante';
   const created = formatDateTime(order.createdAt || order.created_at || order.date);
   const orderId = String(order.id || order.orderId || order.uuid || '');
+  const couponCode = order.couponCode || '';
+  const discount = Number(order.discountAmount || 0);
   return `
     <article class="order-card" data-order-id="${escapeHtml(orderId)}" role="button" tabindex="0">
       <div class="order-card-head">
@@ -534,6 +928,7 @@ function renderOrderCard(order) {
       </div>
       <div class="order-items-preview">${escapeHtml(preview || 'Itens do pedido')}</div>
       <div class="restaurant-inline-meta">${escapeHtml(created)} • ${escapeHtml(formatCurrency(total))}</div>
+      ${couponCode ? `<div class="order-coupon-note">Cupom ${escapeHtml(couponCode)} aplicado${discount ? ` • desconto ${escapeHtml(formatCurrency(discount))}` : ''}</div>` : ''}
     </article>
   `;
 }
@@ -545,6 +940,9 @@ async function openOrderDetails(order) {
   const deliveryFee = Number(detailedOrder.deliveryFee || detailedOrder.fee || 0);
   const subtotal = Number(detailedOrder.subtotal || detailedOrder.subTotal || detailedOrder.itemsTotal || 0);
   const total = Number(detailedOrder.totalAmount || detailedOrder.total || detailedOrder.grandTotal || 0);
+  const discount = Number(detailedOrder.discountAmount || 0);
+  const couponCode = detailedOrder.couponCode || null;
+  const couponType = detailedOrder.couponType || null;
   const status = translateOrderStatus(detailedOrder.status || 'PENDING');
   const restaurant = detailedOrder.restaurantName || detailedOrder.restaurant?.name || 'Restaurante';
   const created = formatDateTime(detailedOrder.createdAt || detailedOrder.created_at || detailedOrder.date);
@@ -564,8 +962,10 @@ async function openOrderDetails(order) {
         <div><span>Pagamento</span><strong>${escapeHtml(payment || 'Não informado')}</strong></div>
         <div><span>Entrega</span><strong>${escapeHtml(formatCurrency(deliveryFee))}</strong></div>
         <div><span>Subtotal</span><strong>${escapeHtml(formatCurrency(subtotal))}</strong></div>
+        <div><span>Desconto</span><strong>${escapeHtml(discount ? `- ${formatCurrency(discount)}` : formatCurrency(0))}</strong></div>
         <div><span>Total</span><strong>${escapeHtml(formatCurrency(total))}</strong></div>
       </div>
+      ${couponCode ? `<div class="order-details-block"><h4>Cupom aplicado</h4><p>${escapeHtml(couponCode)} • ${escapeHtml(couponType === 'PROMOTIONAL' ? 'Promocional' : couponType === 'REFERRAL_REWARD' ? 'Recompensa de indicação' : 'Indicação')}</p></div>` : ''}
       <div class="order-details-block">
         <h4>Itens</h4>
         <div class="order-detail-items">${items.map(renderOrderDetailItem).join('') || '<div class="empty">Nenhum item encontrado.</div>'}</div>
@@ -763,6 +1163,9 @@ function logout(notify) {
   state.cart = [];
   state.deliveryFee = 0;
   state.currentQuote = null;
+  state.couponsDashboard = null;
+  state.activeCouponValidation = null;
+  state.lastCouponValidatedCode = '';
   localStorage.removeItem(STORAGE_KEYS.accessToken);
   localStorage.removeItem(STORAGE_KEYS.refreshToken);
   localStorage.removeItem(STORAGE_KEYS.currentUser);
@@ -885,6 +1288,7 @@ async function loadSelectedRestaurantCatalog() {
     state.catalog = null;
     state.categories = [];
     state.deliveryFee = 0;
+    clearCouponState(false);
     renderSelectedRestaurant();
     renderCategories();
     renderMenu();
@@ -1120,6 +1524,7 @@ function handleRestaurantCardClick(event) {
   if (state.selectedRestaurant?.id && state.selectedRestaurant.id !== restaurant.id) {
     state.cart = [];
     state.currentQuote = null;
+    clearCouponState(false);
   }
   state.selectedRestaurant = restaurant;
   openRestaurantDetailView();
@@ -1352,10 +1757,13 @@ function renderCart() {
   }
 
   const subtotal = state.cart.reduce((sum, item) => sum + (item.totalUnitPrice * item.quantity), 0);
-  const total = subtotal + Number(state.deliveryFee || 0);
+  const discountAmount = getCouponDiscountAmount();
+  const total = Math.max(0, subtotal + Number(state.deliveryFee || 0) - discountAmount);
   el.subtotalValue.textContent = formatCurrency(subtotal);
   el.deliveryFeeValue.textContent = formatCurrency(state.deliveryFee || 0);
+  if (el.discountValue) el.discountValue.textContent = discountAmount ? `- ${formatCurrency(discountAmount)}` : formatCurrency(0);
   el.totalValue.textContent = formatCurrency(total);
+  renderCouponFeedback();
   updateMobileCartFab();
 }
 
@@ -1363,6 +1771,7 @@ function handleCartActions(event) {
   const button = event.target.closest('[data-remove-cart-item]');
   if (!button) return;
   state.cart = state.cart.filter((item) => item.uid !== button.dataset.removeCartItem);
+  invalidateCouponPreview();
   renderCart();
 }
 
@@ -1375,6 +1784,20 @@ async function quoteOrder(event) {
       const total = Number(quote.total ?? quote.summary?.total ?? 0);
       const deliveryFee = Number((quote.deliveryFee ?? quote.summary?.deliveryFee ?? state.deliveryFee) || 0);
       state.deliveryFee = deliveryFee;
+      if (quote?.couponCode) {
+        state.activeCouponValidation = {
+          valid: true,
+          couponCode: quote.couponCode,
+          type: quote.couponType || null,
+          discountAmount: Number(quote.discountAmount || 0),
+          finalTotalPreview: total,
+          message: 'Desconto aplicado ao resumo do pedido.'
+        };
+        state.lastCouponValidatedCode = normalizeCouponCodeLocal(quote.couponCode);
+      } else {
+        state.activeCouponValidation = null;
+        state.lastCouponValidatedCode = '';
+      }
       renderCart();
       if (total) el.totalValue.textContent = formatCurrency(total);
       showToast('Pedido calculado com sucesso.', 'success');
@@ -1413,9 +1836,13 @@ async function finalizeOrderPayload(payload) {
   state.cart = [];
   state.currentQuote = result;
   state.pendingOrderPayload = null;
+  state.activeCouponValidation = null;
+  state.lastCouponValidatedCode = '';
+  if (el.couponCodeInput) el.couponCodeInput.value = '';
   setMobileCartOpen(false);
   renderCart();
   toggleModal('phoneVerificationModal', false);
+  if (state.couponsDashboard) loadCouponsDashboard(true).catch(() => {});
   showToast('Pedido enviado com sucesso.', 'success');
   openOrdersModal().catch(() => {});
 }
@@ -1494,6 +1921,7 @@ function buildOrderPayload() {
     cashChangeFor,
     deliveryName: el.deliveryNameInput.value.trim() || state.currentUser?.name || '',
     deliveryPhone: el.deliveryPhoneInput.value.trim() || state.currentUser?.phone || '',
+    couponCode: getCurrentCouponCode() || undefined,
     items: state.cart.map((item) => ({
       menuItemId: item.menuItemId,
       quantity: item.quantity,
@@ -1541,6 +1969,7 @@ async function handleAddressChange(addressId) {
   state.selectedAddressId = addressId;
   state.cart = [];
   state.selectedRestaurant = null;
+  clearCouponState(false);
   renderCart();
   updateHeaderAddress();
   toggleModal('addressModal', false);
@@ -1554,6 +1983,7 @@ function openRestaurantListView(clearCart=false) {
   if (clearCart) {
     state.cart = [];
     state.currentQuote = null;
+    clearCouponState(false);
   }
   renderSelectedRestaurant();
   renderCart();

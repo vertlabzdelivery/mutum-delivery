@@ -45,6 +45,7 @@
         <button id="profileBtn" class="user-avatar-btn" type="button" aria-label="Abrir perfil"><div class="user-avatar">👤</div></button>
         <strong id="headerUserName"></strong>
         <button id="ordersBtn" class="ghost-btn small topbar-btn" type="button" aria-label="Ver pedidos" title="Pedidos"><span class="btn-icon" aria-hidden="true">🧾</span><span class="btn-label">Pedidos</span></button>
+        <button id="couponsBtn" class="ghost-btn small topbar-btn" type="button" aria-label="Ver cupons" title="Cupons"><span class="btn-icon" aria-hidden="true">🎟️</span><span class="btn-label">Cupons</span></button>
         <button id="logoutBtn" class="ghost-btn small topbar-btn" type="button" aria-label="Sair" title="Sair"><span class="btn-icon" aria-hidden="true">↪</span><span class="btn-label">Sair</span></button>
       </div>
     </div>
@@ -191,6 +192,17 @@
           </label>
 
           <label>
+            <span>Cupom</span>
+            <div class="coupon-inline-field">
+              <input id="couponCodeInput" type="text" placeholder="Digite ou cole seu cupom" autocomplete="off" />
+              <button id="applyCouponBtn" class="ghost-btn" type="button">Aplicar</button>
+              <button id="clearCouponBtn" class="ghost-btn" type="button">Limpar</button>
+            </div>
+            <small class="field-hint">Aceita cupons promocionais, de indicação e recompensas liberadas para você.</small>
+            <div id="couponFeedback" class="coupon-feedback"><span>Nenhum cupom aplicado no momento.</span></div>
+          </label>
+
+          <label>
             <span>Observações do pedido</span>
             <small id="orderNotesHint" class="field-hint">Alguma observação para o restaurante? Ex.: retirar cebola.</small>
             <textarea id="orderNotesInput" rows="3" placeholder="Alguma observação para o restaurante? Ex.: retirar cebola."></textarea>
@@ -202,6 +214,7 @@
           <div class="cart-summary">
             <div><span>Subtotal</span><strong id="subtotalValue">R$ 0,00</strong></div>
             <div><span>Entrega</span><strong id="deliveryFeeValue">R$ 0,00</strong></div>
+            <div><span>Desconto</span><strong id="discountValue">R$ 0,00</strong></div>
             <div class="total-row"><span>Total</span><strong id="totalValue">R$ 0,00</strong></div>
           </div>
 
@@ -347,6 +360,17 @@
           <button id="addToCartBtn" class="primary-btn" type="button">Adicionar ao carrinho</button>
         </aside>
       </div>
+    </div>
+  </div>
+
+
+  <div id="couponsModal" class="modal hidden">
+    <div class="modal-card large-modal coupon-modal-card">
+      <div class="modal-head">
+        <h3>Cupons e indicações</h3>
+        <button class="icon-btn" data-close-modal="couponsModal" type="button">✕</button>
+      </div>
+      <div id="couponsContent" class="coupons-content"></div>
     </div>
   </div>
 
