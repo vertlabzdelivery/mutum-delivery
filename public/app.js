@@ -144,6 +144,8 @@ const el = {
   itemModalImageFallback: document.getElementById('itemModalImageFallback'),
   optionGroupsRoot: document.getElementById('optionGroupsRoot'),
   itemQuantityInput: document.getElementById('itemQuantityInput'),
+  itemQtyMinusBtn: document.getElementById('itemQtyMinusBtn'),
+  itemQtyPlusBtn: document.getElementById('itemQtyPlusBtn'),
   itemNotesInput: document.getElementById('itemNotesInput'),
   itemSummaryBase: document.getElementById('itemSummaryBase'),
   itemSummaryExtras: document.getElementById('itemSummaryExtras'),
@@ -215,6 +217,7 @@ function bindEvents() {
   el.openPhoneVerificationFromProfileBtn?.addEventListener('click', () => openPhoneVerificationModal());
   el.ordersBtn?.addEventListener('click', openOrdersModal);
   el.couponsBtn?.addEventListener('click', openCouponsModal);
+  el.themeToggleBtn?.addEventListener('click', toggleTheme);
   el.ordersList?.addEventListener('click', handleOrdersListClick);
   el.orderDetailsContent?.addEventListener('click', handleOrderDetailsContentClick);
   el.couponsContent?.addEventListener('click', handleCouponsPanelClick);
@@ -242,6 +245,8 @@ function bindEvents() {
   el.restaurantSections.addEventListener('click', handleRestaurantCardClick);
   el.addressList?.addEventListener('click', handleRestaurantCardClick);
   el.itemQuantityInput.addEventListener('input', updateCurrentItemSummary);
+  el.itemQtyMinusBtn?.addEventListener('click', () => adjustItemQuantity(-1));
+  el.itemQtyPlusBtn?.addEventListener('click', () => adjustItemQuantity(1));
   el.itemNotesInput.addEventListener('input', updateCurrentItemSummary);
   el.optionGroupsRoot.addEventListener('change', updateCurrentItemSummary);
   el.addToCartBtn.addEventListener('click', addCurrentItemToCart);
@@ -1892,6 +1897,14 @@ function renderOptionGroup(option) {
       </div>
     </section>
   `;
+}
+
+
+function adjustItemQuantity(delta) {
+  const current = Math.max(1, Number(el.itemQuantityInput?.value || 1));
+  const next = Math.max(1, current + Number(delta || 0));
+  if (el.itemQuantityInput) el.itemQuantityInput.value = String(next);
+  updateCurrentItemSummary();
 }
 
 function updateCurrentItemSummary() {

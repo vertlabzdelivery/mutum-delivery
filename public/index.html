@@ -37,10 +37,10 @@
           <span id="headerAddressText">Escolha um endereço para ver os restaurantes.</span>
         </div>
       </button>
+      <button id="themeToggleBtn" class="ghost-btn small topbar-btn theme-toggle-btn" type="button" aria-label="Alternar tema" title="Alternar tema"><span class="btn-icon" aria-hidden="true">🌙</span><span class="btn-label">Tema escuro</span></button>
     </div>
 
     <div class="topbar-actions">
-      <button id="themeToggleBtn" class="ghost-btn small topbar-btn theme-toggle-btn" type="button" aria-label="Alternar tema" title="Alternar tema"><span class="btn-icon" aria-hidden="true">🌙</span><span class="btn-label">Tema escuro</span></button>
       <div id="headerGuest" class="header-guest">Entre para fazer seu pedido</div>
       <div id="headerUser" class="user-chip hidden">
         <button id="profileBtn" class="user-avatar-btn" type="button" aria-label="Abrir perfil"><div class="user-avatar">👤</div></button>
@@ -321,37 +321,38 @@
   </div>
 
   <div id="itemModal" class="modal hidden">
-    <div class="modal-card large-modal">
-      <div class="modal-head">
-        <div>
-          <h3 id="itemModalTitle">Produto</h3>
-          <p id="itemModalSubtitle" class="muted"></p>
-        </div>
+    <div class="modal-card large-modal item-modal-card">
+      <div class="item-modal-close-row">
         <button class="icon-btn" data-close-modal="itemModal" type="button">✕</button>
       </div>
 
       <div class="item-modal-layout">
         <div class="item-modal-main">
+          <div class="item-modal-heading">
+            <h3 id="itemModalTitle">Produto</h3>
+            <p id="itemModalSubtitle" class="muted"></p>
+          </div>
           <div class="item-cover-row">
             <img id="itemModalImage" class="item-modal-image hidden" alt="Imagem do produto" />
             <div id="itemModalImageFallback" class="item-modal-image-fallback">UP</div>
-            <div>
-              <div class="price-big" id="itemBasePrice">R$ 0,00</div>
-              <div id="itemBadges" class="tag-row"></div>
-            </div>
           </div>
-
+          <div class="price-big item-price-center" id="itemBasePrice">R$ 0,00</div>
+          <div id="itemBadges" class="tag-row item-badges-center"></div>
           <div id="optionGroupsRoot" class="option-groups"></div>
         </div>
 
         <aside class="item-modal-side">
-          <label>
-            <span>Quantidade</span>
-            <input id="itemQuantityInput" type="number" min="1" step="1" value="1" />
-          </label>
+          <div class="quantity-card">
+            <span class="quantity-title">Quantidade</span>
+            <div class="quantity-stepper">
+              <button id="itemQtyMinusBtn" class="icon-btn qty-btn" type="button" aria-label="Diminuir quantidade">−</button>
+              <input id="itemQuantityInput" type="number" min="1" step="1" value="1" readonly />
+              <button id="itemQtyPlusBtn" class="icon-btn qty-btn" type="button" aria-label="Aumentar quantidade">+</button>
+            </div>
+          </div>
           <label>
             <span>Observações</span>
-            <textarea id="itemNotesInput" rows="4"></textarea>
+            <textarea id="itemNotesInput" rows="4" placeholder="Ex.: sem cebola"></textarea>
           </label>
           <div class="cart-summary item-summary-card">
             <div><span>Base</span><strong id="itemSummaryBase">R$ 0,00</strong></div>
