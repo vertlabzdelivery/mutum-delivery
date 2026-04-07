@@ -1443,18 +1443,24 @@ async function fetchAllActiveRestaurants(limit = 100) {
   let page = 1;
   let totalPages = 1;
 
-  while (page <= totalPages && page <= 20) {
+  while (page <= totalPages && page <= 10) {
     const payload = await apiRequest(`/restaurants/active?page=${page}&limit=${limit}`, { retryOn401: false }).catch(() => null);
     const items = unwrapCollection(payload);
+    const beforeCount = seen.size;
+
     for (const item of items) {
       if (!item?.id || seen.has(item.id)) continue;
       seen.add(item.id);
       collected.push(item);
     }
+
     const pagination = payload?.pagination || payload?.meta || payload?.pageInfo || null;
-    totalPages = Number(pagination?.totalPages || pagination?.pages || (items.length < limit ? page : page + 1));
+    const hasExplicitPagination = Number.isFinite(Number(pagination?.totalPages || pagination?.pages));
+    totalPages = hasExplicitPagination ? Number(pagination?.totalPages || pagination?.pages || page) : page;
+
     if (!items.length) break;
-    if (!pagination?.totalPages && items.length < limit) break;
+    if (!hasExplicitPagination) break;
+    if (seen.size === beforeCount) break;
     page += 1;
   }
 
@@ -1474,13 +1480,14 @@ async function loadRestaurantsByAddress() {
   const availableRestaurants = unwrapCollection(availableRaw).map(normalizeRestaurant);
   const availableMap = new Map(availableRestaurants.map((item) => [item.id, item]));
 
-  const activeRestaurants = Array.isArray(activeRaw) ? activeRaw : unwrapCollection(activeRaw);
-  const sameCityRestaurants = activeRestaurants
-    .filter((item) => String(item.cityId || item.city?.id || '') === String(currentAddress.cityId || ''))
-    .map(normalizeRestaurant);
+  const activeRestaurants = (Array.isArray(activeRaw) ? activeRaw : unwrapCollection(activeRaw)).map(normalizeRestaurant);
+  const sameCityRestaurants = activeRestaurants.filter((item) => String(item.cityId || item.city?.id || '') === String(currentAddress.cityId || ''));
 
   const mergedById = new Map();
-  for (const restaurant of sameCityRestaurants) mergedById.set(restaurant.id, restaurant);
+  for (const restaurant of sameCityRestaurants) {
+    if (!restaurant?.id) continue;
+    mergedById.set(restaurant.id, restaurant);
+  }
   for (const restaurant of availableRestaurants) {
     if (!restaurant?.id) continue;
     const current = mergedById.get(restaurant.id) || {};
@@ -1488,14 +1495,6 @@ async function loadRestaurantsByAddress() {
   }
 
   const mergedRestaurants = Array.from(mergedById.values());
-
-  const zoneEntries = await Promise.all(mergedRestaurants
-    .filter((item) => item.isActive)
-    .map(async (restaurant) => {
-      const zones = unwrapCollection(await apiRequest(`/restaurant-delivery-zones/public/restaurant/${restaurant.id}`, { retryOn401: false }).catch(() => []));
-      return [restaurant.id, zones];
-    }));
-  const zonesByRestaurant = new Map(zoneEntries);
 
   const hourEntries = mergedRestaurants.map((restaurant) => {
     const hours = normalizeOpeningHours(restaurant.hours || restaurant.openingHours || []);
@@ -1505,17 +1504,15 @@ async function loadRestaurantsByAddress() {
 
   state.restaurants = mergedRestaurants.map((restaurant) => {
     const matchingAvailable = availableMap.get(restaurant.id);
-    const zones = zonesByRestaurant.get(restaurant.id) || [];
     const hours = state.restaurantHoursById[restaurant.id] || [];
-    const neighborhoodZone = zones.find((zone) => String(zone.neighborhoodId || zone.neighborhood?.id || '') === String(currentAddress.neighborhoodId || '') && zone.isActive !== false);
-    const previewZone = neighborhoodZone || zones.find((zone) => zone.isActive !== false) || null;
-    const deliveryFee = Number(matchingAvailable?.deliveryFee ?? neighborhoodZone?.deliveryFee ?? previewZone?.deliveryFee ?? 0);
-    const minTime = Number(matchingAvailable?.minTime ?? neighborhoodZone?.minTime ?? previewZone?.minTime ?? 0);
-    const maxTime = Number(matchingAvailable?.maxTime ?? neighborhoodZone?.maxTime ?? previewZone?.maxTime ?? 0);
+    const deliveryFee = Number(matchingAvailable?.deliveryFee ?? restaurant.deliveryFee ?? 0);
+    const minTime = Number(matchingAvailable?.minTime ?? restaurant.minTime ?? 0);
+    const maxTime = Number(matchingAvailable?.maxTime ?? restaurant.maxTime ?? 0);
     const categoryNames = unwrapCollection(restaurant.menuCategories || matchingAvailable?.menuCategories || []).map((item) => item.name).filter(Boolean);
-    const isAvailableForAddress = Boolean(matchingAvailable || neighborhoodZone);
+    const isAvailableForAddress = Boolean(matchingAvailable);
     const openInfo = getRestaurantOpenInfo(hours);
     const isCurrentlyOpen = restaurant.isActive && openInfo.isOpen;
+
     return {
       ...restaurant,
       ...(matchingAvailable || {}),
@@ -1530,7 +1527,6 @@ async function loadRestaurantsByAddress() {
       isCurrentlyOpen,
       openLabel: openInfo.label,
       hoursTodayLabel: openInfo.todayLabel,
-      zoneCount: zones.length
     };
   });
 
