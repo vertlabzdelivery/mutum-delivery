@@ -2495,16 +2495,18 @@ function getEmbeddedRestaurantPaymentMethods(restaurant) {
   return codes.map((code) => normalizePaymentMethod({ id: code, code, name: labels[code] || code, selected: true, isActive: true }));
 }
 
-const DEFAULT_PAYMENT_METHODS = [
-  normalizePaymentMethod({ id: 'CASH', code: 'CASH', name: 'Dinheiro', selected: true, isActive: true }),
-  normalizePaymentMethod({ id: 'PIX', code: 'PIX', name: 'PIX', selected: true, isActive: true }),
-  normalizePaymentMethod({ id: 'CREDIT_CARD', code: 'CREDIT_CARD', name: 'Cartão de crédito', selected: true, isActive: true }),
-  normalizePaymentMethod({ id: 'DEBIT_CARD', code: 'DEBIT_CARD', name: 'Cartão de débito', selected: true, isActive: true })
-].filter(Boolean);
+function getDefaultPaymentMethods() {
+  return [
+    normalizePaymentMethod({ id: 'CASH', code: 'CASH', name: 'Dinheiro', selected: true, isActive: true }),
+    normalizePaymentMethod({ id: 'PIX', code: 'PIX', name: 'PIX', selected: true, isActive: true }),
+    normalizePaymentMethod({ id: 'CREDIT_CARD', code: 'CREDIT_CARD', name: 'Cartão de crédito', selected: true, isActive: true }),
+    normalizePaymentMethod({ id: 'DEBIT_CARD', code: 'DEBIT_CARD', name: 'Cartão de débito', selected: true, isActive: true })
+  ].filter(Boolean);
+}
 
 function renderPaymentMethodOptions() {
   if (!el.paymentMethodSelect) return;
-  const methods = (state.restaurantPaymentMethods && state.restaurantPaymentMethods.length ? state.restaurantPaymentMethods : DEFAULT_PAYMENT_METHODS)
+  const methods = (state.restaurantPaymentMethods && state.restaurantPaymentMethods.length ? state.restaurantPaymentMethods : getDefaultPaymentMethods())
     .filter((item) => item && item.isActive !== false && item.selected !== false);
 
   const previous = el.paymentMethodSelect.value;
@@ -2536,9 +2538,9 @@ async function loadRestaurantPaymentMethods(restaurantId) {
     const payload = await apiRequest(`/payment-methods/restaurant/${restaurantId}`, { auth: false, retryOn401: false });
     const source = unwrapData(payload) || payload || {};
     const items = unwrapCollection(source.items).map(normalizePaymentMethod).filter((item) => item && item.isActive !== false && item.selected !== false);
-    state.restaurantPaymentMethods = items.length ? items : DEFAULT_PAYMENT_METHODS;
+    state.restaurantPaymentMethods = items.length ? items : getDefaultPaymentMethods();
   } catch (error) {
-    state.restaurantPaymentMethods = DEFAULT_PAYMENT_METHODS;
+    state.restaurantPaymentMethods = getDefaultPaymentMethods();
   }
 
   renderPaymentMethodOptions();
