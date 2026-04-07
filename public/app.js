@@ -42,6 +42,7 @@ const state = {
   currentOrderDetails: null,
   currentOrderReviewContext: null,
   currentRestaurantReviews: null,
+  restaurantPaymentMethods: [],
   theme: localStorage.getItem(STORAGE_KEYS.theme) || 'light'
 };
 
@@ -1553,6 +1554,8 @@ async function loadSelectedRestaurantCatalog() {
     state.catalog = null;
     state.categories = [];
     state.deliveryFee = 0;
+    state.restaurantPaymentMethods = [];
+    renderPaymentMethodOptions();
     clearCouponState(false);
     renderSelectedRestaurant();
     renderCategories();
@@ -1565,6 +1568,7 @@ async function loadSelectedRestaurantCatalog() {
   state.catalog = catalog;
   state.categories = normalizeCatalogCategories(catalog);
   state.deliveryFee = Number(state.selectedRestaurant.deliveryFee || 0);
+  await loadRestaurantPaymentMethods(state.selectedRestaurant.id);
   renderSelectedRestaurant();
   renderCategories();
   renderMenu();
@@ -1798,6 +1802,8 @@ function handleRestaurantCardClick(event) {
   if (state.selectedRestaurant?.id && state.selectedRestaurant.id !== restaurant.id) {
     state.cart = [];
     state.currentQuote = null;
+    state.restaurantPaymentMethods = [];
+    renderPaymentMethodOptions();
     clearCouponState(false);
   }
   state.selectedRestaurant = restaurant;
@@ -2002,6 +2008,7 @@ function addCurrentItemToCart() {
 }
 
 function renderCart() {
+  renderPaymentMethodOptions();
   const shouldShowCart = state.currentView === 'detail' && (isMobileViewport() || state.cart.length > 0);
   if (!shouldShowCart) {
     setMobileCartOpen(false);
@@ -2251,6 +2258,8 @@ async function handleAddressChange(addressId) {
   state.selectedAddressId = addressId;
   state.cart = [];
   state.selectedRestaurant = null;
+  state.restaurantPaymentMethods = [];
+  renderPaymentMethodOptions();
   clearCouponState(false);
   renderCart();
   updateHeaderAddress();
@@ -2265,6 +2274,8 @@ function openRestaurantListView(clearCart=false) {
   if (clearCart) {
     state.cart = [];
     state.currentQuote = null;
+    state.restaurantPaymentMethods = [];
+    renderPaymentMethodOptions();
     clearCouponState(false);
   }
   renderSelectedRestaurant();
@@ -2454,6 +2465,88 @@ function normalizeRestaurant(item) {
     hours: normalizeOpeningHours(item.hours || item.openingHours || []),
     menuCategories: unwrapCollection(item.menuCategories || item.categories || [])
   };
+}
+
+function normalizePaymentMethod(item) {
+  if (!item) return null;
+  return {
+    id: item.id || item.code || '',
+    code: item.code || item.id || '',
+    name: item.name || item.label || item.code || item.id || 'Método',
+    description: item.description || '',
+    icon: item.icon || '',
+    sortOrder: Number(item.sortOrder || 0),
+    isActive: item.isActive !== false,
+    selected: item.selected !== false
+  };
+}
+
+function getEmbeddedRestaurantPaymentMethods(restaurant) {
+  const items = unwrapCollection(restaurant?.acceptedPaymentMethods || [])
+    .map(normalizePaymentMethod)
+    .filter((item) => item && item.isActive !== false && item.selected !== false);
+  if (items.length) return items;
+
+  const codes = unwrapCollection(restaurant?.acceptedPaymentMethodCodes || []);
+  if (!codes.length) return [];
+
+  const labels = {
+    CASH: 'Dinheiro',
+    PIX: 'PIX',
+    CREDIT_CARD: 'Cartão de crédito',
+    DEBIT_CARD: 'Cartão de débito'
+  };
+  return codes.map((code) => normalizePaymentMethod({ id: code, code, name: labels[code] || code, selected: true, isActive: true }));
+}
+
+const DEFAULT_PAYMENT_METHODS = [
+  normalizePaymentMethod({ id: 'CASH', code: 'CASH', name: 'Dinheiro', selected: true, isActive: true }),
+  normalizePaymentMethod({ id: 'PIX', code: 'PIX', name: 'PIX', selected: true, isActive: true }),
+  normalizePaymentMethod({ id: 'CREDIT_CARD', code: 'CREDIT_CARD', name: 'Cartão de crédito', selected: true, isActive: true }),
+  normalizePaymentMethod({ id: 'DEBIT_CARD', code: 'DEBIT_CARD', name: 'Cartão de débito', selected: true, isActive: true })
+].filter(Boolean);
+
+function renderPaymentMethodOptions() {
+  if (!el.paymentMethodSelect) return;
+  const methods = (state.restaurantPaymentMethods && state.restaurantPaymentMethods.length ? state.restaurantPaymentMethods : DEFAULT_PAYMENT_METHODS)
+    .filter((item) => item && item.isActive !== false && item.selected !== false);
+
+  const previous = el.paymentMethodSelect.value;
+  el.paymentMethodSelect.innerHTML = methods.map((item) => `
+    <option value="${escapeAttribute(item.code)}">${escapeHtml(item.name)}</option>
+  `).join('');
+
+  const hasPrevious = methods.some((item) => item.code === previous);
+  el.paymentMethodSelect.value = hasPrevious ? previous : (methods[0]?.code || 'CASH');
+  el.paymentMethodSelect.disabled = methods.length === 0;
+  updateOrderNotesHint();
+}
+
+async function loadRestaurantPaymentMethods(restaurantId) {
+  if (!restaurantId) {
+    state.restaurantPaymentMethods = [];
+    renderPaymentMethodOptions();
+    return [];
+  }
+
+  const embedded = getEmbeddedRestaurantPaymentMethods(state.selectedRestaurant || {});
+  if (embedded.length) {
+    state.restaurantPaymentMethods = embedded;
+    renderPaymentMethodOptions();
+    return embedded;
+  }
+
+  try {
+    const payload = await apiRequest(`/payment-methods/restaurant/${restaurantId}`, { auth: false, retryOn401: false });
+    const source = unwrapData(payload) || payload || {};
+    const items = unwrapCollection(source.items).map(normalizePaymentMethod).filter((item) => item && item.isActive !== false && item.selected !== false);
+    state.restaurantPaymentMethods = items.length ? items : DEFAULT_PAYMENT_METHODS;
+  } catch (error) {
+    state.restaurantPaymentMethods = DEFAULT_PAYMENT_METHODS;
+  }
+
+  renderPaymentMethodOptions();
+  return state.restaurantPaymentMethods;
 }
 
 
