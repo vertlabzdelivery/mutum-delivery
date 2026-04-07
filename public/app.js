@@ -37,7 +37,10 @@ const state = {
   passwordRecoveryResetToken: '',
   couponsDashboard: null,
   activeCouponValidation: null,
-  lastCouponValidatedCode: ''
+  lastCouponValidatedCode: '',
+  currentOrderDetails: null,
+  currentOrderReviewContext: null,
+  currentRestaurantReviews: null
 };
 
 const el = {
@@ -81,6 +84,8 @@ const el = {
   restaurantTitle: document.getElementById('restaurantTitle'),
   restaurantSubtitle: document.getElementById('restaurantSubtitle'),
   restaurantRatingBadge: document.getElementById('restaurantRatingBadge'),
+  restaurantReviewsModal: document.getElementById('restaurantReviewsModal'),
+  restaurantReviewsContent: document.getElementById('restaurantReviewsContent'),
   restaurantFeeMeta: document.getElementById('restaurantFeeMeta'),
   restaurantTimeMeta: document.getElementById('restaurantTimeMeta'),
   restaurantStatusMeta: document.getElementById('restaurantStatusMeta'),
@@ -207,7 +212,9 @@ function bindEvents() {
   el.ordersBtn?.addEventListener('click', openOrdersModal);
   el.couponsBtn?.addEventListener('click', openCouponsModal);
   el.ordersList?.addEventListener('click', handleOrdersListClick);
+  el.orderDetailsContent?.addEventListener('click', handleOrderDetailsContentClick);
   el.couponsContent?.addEventListener('click', handleCouponsPanelClick);
+  el.restaurantRatingBadge?.addEventListener('click', handleRestaurantRatingClick);
   el.headerAddressBtn?.addEventListener('click', openAddressModal);
   el.backToRestaurantsBtn?.addEventListener('click', () => openRestaurantListView(true));
   el.stateSelect?.addEventListener('change', handleStateChange);
@@ -934,7 +941,54 @@ function renderOrderCard(order) {
 }
 
 async function openOrderDetails(order) {
+  state.currentOrderDetails = null;
+  state.currentOrderReviewContext = null;
+  setMobileCartOpen(false);
+  el.orderDetailsContent.innerHTML = '<div class="empty">Carregando detalhes do pedido...</div>';
+  toggleModal('orderDetailsModal', true);
+
   const detailedOrder = await fetchOrderDetails(order);
+  state.currentOrderDetails = detailedOrder;
+
+  const restaurantId = String(detailedOrder.restaurantId || detailedOrder.restaurant?.id || '');
+  const orderId = String(detailedOrder.id || detailedOrder.orderId || detailedOrder.uuid || '');
+  const delivered = isDeliveredOrderStatus(detailedOrder.status);
+
+  if (restaurantId && orderId && delivered && state.accessToken) {
+    try {
+      const reviewPayload = await apiRequest(`/restaurants/${restaurantId}/reviews/me?orderId=${encodeURIComponent(orderId)}`, {
+        auth: true,
+        retryOn401: true
+      }).catch(() => null);
+      state.currentOrderReviewContext = parseMyReviewResponse(reviewPayload, true, restaurantId, orderId);
+    } catch (_) {
+      state.currentOrderReviewContext = {
+        canReview: true,
+        myReview: null,
+        ratingDraft: 5,
+        restaurantId,
+        orderId,
+      };
+    }
+  }
+
+  renderOrderDetailsModal();
+}
+
+async function fetchOrderDetails(order) {
+  const orderId = order?.id || order?.orderId || order?.uuid;
+  if (!orderId || !state.accessToken) return order;
+  try {
+    const detailed = await apiRequest(`/orders/${orderId}`, { auth: true, retryOn401: true });
+    return detailed || order;
+  } catch (error) {
+    return order;
+  }
+}
+
+function renderOrderDetailsModal() {
+  const detailedOrder = state.currentOrderDetails;
+  if (!detailedOrder || !el.orderDetailsContent) return;
   const items = unwrapCollection(detailedOrder.items || detailedOrder.orderItems || []);
   const payment = translatePaymentMethod(detailedOrder.paymentMethod || detailedOrder.payment || '');
   const deliveryFee = Number(detailedOrder.deliveryFee || detailedOrder.fee || 0);
@@ -947,8 +1001,8 @@ async function openOrderDetails(order) {
   const restaurant = detailedOrder.restaurantName || detailedOrder.restaurant?.name || 'Restaurante';
   const created = formatDateTime(detailedOrder.createdAt || detailedOrder.created_at || detailedOrder.date);
   const addressText = extractOrderAddressText(detailedOrder);
+  const reviewSection = renderOrderReviewSection(detailedOrder, state.currentOrderReviewContext);
 
-  setMobileCartOpen(false);
   el.orderDetailsContent.innerHTML = `
     <div class="order-details-card">
       <div class="order-details-head">
@@ -975,21 +1029,185 @@ async function openOrderDetails(order) {
         <p>${escapeHtml(addressText || 'Endereço não informado.')}</p>
       </div>
       ${detailedOrder.notes || detailedOrder.observations ? `<div class="order-details-block"><h4>Observações</h4><p>${escapeHtml(detailedOrder.notes || detailedOrder.observations)}</p></div>` : ''}
-      ${(() => { if (detailedOrder.status !== 'CANCELED') return ''; const h = Array.isArray(detailedOrder.statusHistory) ? detailedOrder.statusHistory.find((e) => e.toStatus === 'CANCELED') : null; const r = h?.note; return r ? `<div class="order-details-block cancel-reason-block"><h4>Motivo do cancelamento</h4><p>${escapeHtml(r)}</p></div>` : ''; })()}
+      ${(() => { if (String(detailedOrder.status || '').toUpperCase() !== 'CANCELED') return ''; const h = Array.isArray(detailedOrder.statusHistory) ? detailedOrder.statusHistory.find((e) => e.toStatus === 'CANCELED') : null; const r = h?.note; return r ? `<div class="order-details-block cancel-reason-block"><h4>Motivo do cancelamento</h4><p>${escapeHtml(r)}</p></div>` : ''; })()}
+      ${reviewSection}
     </div>
   `;
-  toggleModal('orderDetailsModal', true);
 }
 
-async function fetchOrderDetails(order) {
-  const orderId = order?.id || order?.orderId || order?.uuid;
-  if (!orderId || !state.accessToken) return order;
-  try {
-    const detailed = await apiRequest(`/orders/${orderId}`, { auth: true, retryOn401: true });
-    return detailed || order;
-  } catch (error) {
-    return order;
+function renderOrderReviewSection(order, reviewContext) {
+  if (!isDeliveredOrderStatus(order?.status)) return '';
+  const restaurantId = String(order.restaurantId || order.restaurant?.id || reviewContext?.restaurantId || '');
+  const orderId = String(order.id || order.orderId || order.uuid || reviewContext?.orderId || '');
+  if (!restaurantId || !orderId) return '';
+  const context = reviewContext || { canReview: true, myReview: null, ratingDraft: 5, restaurantId, orderId };
+  const canReview = context.canReview !== false;
+  const currentRating = Number(context.ratingDraft || context.myReview?.rating || 5);
+  const stars = [1,2,3,4,5].map((star) => `
+    <button class="rating-star-btn ${currentRating >= star ? 'active' : ''}" type="button" data-order-review-star="${star}" aria-label="Dar ${star} estrela${star > 1 ? 's' : ''}">★</button>
+  `).join('');
+  const helper = context.myReview
+    ? `Você já avaliou este pedido com ${context.myReview.rating} estrela${Number(context.myReview.rating) > 1 ? 's' : ''}. Pode alterar se quiser.`
+    : 'Seu pedido foi entregue. Avalie sua experiência com o restaurante.';
+  return `
+    <div class="order-details-block order-review-block">
+      <h4>Avaliar restaurante</h4>
+      <p class="muted">${escapeHtml(helper)}</p>
+      <div class="order-review-stars" data-order-review-picker>${stars}</div>
+      <div class="order-review-actions">
+        <button class="primary-btn" type="button" data-submit-order-review ${canReview ? '' : 'disabled'}>${context.myReview ? 'Atualizar avaliação' : 'Enviar avaliação'}</button>
+      </div>
+    </div>
+  `;
+}
+
+function isDeliveredOrderStatus(status) {
+  const normalized = String(status || '').toUpperCase();
+  return ['DELIVERED', 'COMPLETED', 'FINISHED'].includes(normalized);
+}
+
+function parseMyReviewResponse(payload, deliveredFallback = true, restaurantId = '', orderId = '') {
+  const source = payload?.data && !Array.isArray(payload.data) ? payload.data : (payload || {});
+  const reviewSource = source?.myReview || (source?.rating ? source : null);
+  return {
+    canReview: Boolean(source?.canReview ?? source?.hasDeliveredOrder ?? source?.eligibleToReview ?? deliveredFallback),
+    myReview: reviewSource ? {
+      id: String(reviewSource.id || orderId || 'me'),
+      rating: clampRating(reviewSource.rating),
+      comment: reviewSource.comment || reviewSource.review || '',
+      createdAt: reviewSource.createdAt || reviewSource.updatedAt || null,
+    } : null,
+    ratingDraft: reviewSource ? clampRating(reviewSource.rating) : 5,
+    restaurantId,
+    orderId,
+  };
+}
+
+function clampRating(value) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return 0;
+  return Math.max(0, Math.min(5, num));
+}
+
+async function handleOrderDetailsContentClick(event) {
+  const starBtn = event.target.closest('[data-order-review-star]');
+  if (starBtn) {
+    const rating = Number(starBtn.dataset.orderReviewStar || 0);
+    if (state.currentOrderReviewContext && rating >= 1 && rating <= 5) {
+      state.currentOrderReviewContext = {
+        ...state.currentOrderReviewContext,
+        ratingDraft: rating,
+      };
+      renderOrderDetailsModal();
+    }
+    return;
   }
+
+  const submitBtn = event.target.closest('[data-submit-order-review]');
+  if (!submitBtn || !state.currentOrderReviewContext?.restaurantId || !state.currentOrderReviewContext?.orderId) return;
+  await runWithButtonLoading(submitBtn, 'Enviando...', async () => {
+    try {
+      const saved = await apiRequest(`/restaurants/${state.currentOrderReviewContext.restaurantId}/reviews`, {
+        method: 'POST',
+        auth: true,
+        retryOn401: true,
+        body: {
+          orderId: state.currentOrderReviewContext.orderId,
+          rating: state.currentOrderReviewContext.ratingDraft || 5,
+        }
+      });
+      state.currentOrderReviewContext = {
+        ...state.currentOrderReviewContext,
+        myReview: {
+          id: String(saved?.id || state.currentOrderReviewContext.orderId),
+          rating: clampRating(saved?.rating || state.currentOrderReviewContext.ratingDraft || 5),
+          comment: saved?.comment || '',
+          createdAt: saved?.createdAt || saved?.updatedAt || null,
+        },
+        ratingDraft: clampRating(saved?.rating || state.currentOrderReviewContext.ratingDraft || 5),
+      };
+      renderOrderDetailsModal();
+      showToast('Avaliação enviada com sucesso.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Não foi possível avaliar este pedido agora.', 'error');
+    }
+  });
+}
+
+function handleRestaurantRatingClick(event) {
+  const trigger = event.target.closest('[data-open-restaurant-reviews]');
+  if (!trigger) return;
+  openRestaurantReviewsModal().catch((error) => showToast(error.message || 'Não foi possível abrir as avaliações.', 'error'));
+}
+
+async function openRestaurantReviewsModal() {
+  if (!state.selectedRestaurant?.id || !el.restaurantReviewsContent) return;
+  toggleModal('restaurantReviewsModal', true);
+  el.restaurantReviewsContent.innerHTML = '<div class="empty">Carregando avaliações...</div>';
+  try {
+    const payload = await apiRequest(`/restaurants/${state.selectedRestaurant.id}/reviews`, { auth: false, retryOn401: false });
+    state.currentRestaurantReviews = parseRestaurantReviewsResponse(payload, state.selectedRestaurant);
+    renderRestaurantReviewsModal();
+  } catch (error) {
+    el.restaurantReviewsContent.innerHTML = `<div class="empty">${escapeHtml(error.message || 'Não foi possível carregar as avaliações.')}</div>`;
+  }
+}
+
+function parseRestaurantReviewsResponse(payload, restaurant = null) {
+  const source = payload?.data && !Array.isArray(payload.data) ? payload.data : (payload || {});
+  const reviewsSource = Array.isArray(payload?.data)
+    ? payload.data
+    : Array.isArray(source?.reviews)
+      ? source.reviews
+      : Array.isArray(payload)
+        ? payload
+        : [];
+  const reviews = reviewsSource.map((item, index) => ({
+    id: String(item?.id || index),
+    rating: clampRating(item?.rating),
+    comment: item?.comment || item?.review || item?.description || '',
+    createdAt: item?.createdAt || item?.updatedAt || null,
+    userName: item?.user?.name || item?.customerName || 'Cliente',
+  }));
+  return {
+    averageRating: clampRating(source?.averageRating ?? source?.ratingAverage ?? source?.summary?.averageRating ?? restaurant?.averageRating ?? restaurant?.rating ?? 0),
+    reviews,
+  };
+}
+
+function renderRestaurantReviewsModal() {
+  if (!el.restaurantReviewsContent) return;
+  const current = state.currentRestaurantReviews || { averageRating: 0, reviews: [] };
+  const avg = Number(current.averageRating || 0);
+  el.restaurantReviewsContent.innerHTML = `
+    <div class="reviews-modal-layout">
+      <div class="reviews-summary-card">
+        <div class="reviews-average-value">${avg > 0 ? escapeHtml(avg.toFixed(1).replace('.', ',')) : '—'}</div>
+        <div class="reviews-average-stars">${renderStars(avg)}</div>
+      </div>
+      <div class="reviews-list">
+        ${current.reviews.length ? current.reviews.map(renderRestaurantReviewItem).join('') : '<div class="empty">Nenhuma avaliação publicada ainda.</div>'}
+      </div>
+    </div>
+  `;
+}
+
+function renderRestaurantReviewItem(review) {
+  return `
+    <article class="review-row-card">
+      <div class="review-row-head">
+        <strong>${escapeHtml(review.userName || 'Cliente')}</strong>
+        <div class="review-inline-stars">${renderStars(review.rating)}</div>
+      </div>
+      ${review.comment ? `<p>${escapeHtml(review.comment)}</p>` : ''}
+      ${review.createdAt ? `<div class="review-date">${escapeHtml(formatDateTime(review.createdAt))}</div>` : ''}
+    </article>
+  `;
+}
+
+function renderStars(value) {
+  const rating = clampRating(value);
+  return Array.from({ length: 5 }, (_, index) => `<span class="review-star ${rating >= index + 1 ? 'active' : ''}">★</span>`).join('');
 }
 
 function extractOrderAddressText(order) {
@@ -1425,7 +1643,16 @@ function renderSelectedRestaurant() {
   el.restaurantSubtitle.textContent = restaurant.categoryNames?.length
     ? `${restaurant.categoryNames.join(', ')} • $`
     : (restaurant.description || 'Cardápio do restaurante');
-  if (el.restaurantRatingBadge) el.restaurantRatingBadge.textContent = '';
+  if (el.restaurantRatingBadge) {
+    const ratingValue = clampRating(restaurant.averageRating || restaurant.ratingAverage || restaurant.rating || 0);
+    el.restaurantRatingBadge.innerHTML = `
+      <button class="rating-inline-btn" type="button" data-open-restaurant-reviews ${restaurant.id ? '' : 'disabled'}>
+        <span class="rating-inline-stars">★</span>
+        <span class="rating-inline-value">${ratingValue > 0 ? escapeHtml(ratingValue.toFixed(1).replace('.', ',')) : '—'}</span>
+        <span class="rating-inline-label">Ver avaliações</span>
+      </button>
+    `;
+  }
   el.restaurantFeeMeta.innerHTML = restaurant.isAvailableForAddress
     ? (restaurant.deliveryFee > 0 ? formatCurrency(restaurant.deliveryFee) : '<span class="delivery-free">GRÁTIS</span>')
     : 'Não entrega no seu bairro';

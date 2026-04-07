@@ -1668,3 +1668,113 @@ button:disabled {
     width: min(100vw - 16px, 1000px);
   }
 }
+
+
+.rating-inline-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  background: #fff7ea;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 12px;
+}
+.rating-inline-stars {
+  color: #f0b429;
+  font-size: 1rem;
+}
+.rating-inline-value {
+  font-weight: 800;
+}
+.rating-inline-label {
+  color: var(--muted);
+  font-size: .85rem;
+}
+.order-review-block {
+  background: #fffdf8;
+}
+.order-review-stars {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rating-star-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: #c9b8a8;
+  font-size: 1.1rem;
+}
+.rating-star-btn.active {
+  background: #fff7ea;
+  border-color: #f0d296;
+  color: #f0b429;
+}
+.order-review-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.reviews-modal-layout {
+  display: grid;
+  gap: 16px;
+}
+.reviews-summary-card {
+  border: 1px solid var(--border);
+  background: #fffdf8;
+  border-radius: 16px;
+  padding: 18px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+.reviews-average-value {
+  font-size: 2rem;
+  font-weight: 800;
+}
+.reviews-average-stars, .review-inline-stars {
+  display: inline-flex;
+  gap: 4px;
+}
+.review-star {
+  color: #d5c7b7;
+  font-size: 1rem;
+}
+.review-star.active {
+  color: #f0b429;
+}
+.reviews-list {
+  display: grid;
+  gap: 12px;
+}
+.review-row-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+}
+.review-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.review-row-card p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.45;
+}
+.review-date {
+  color: var(--muted);
+  font-size: .84rem;
+}
+@media (max-width: 720px) {
+  .review-row-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
