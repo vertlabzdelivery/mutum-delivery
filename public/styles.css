@@ -1,4 +1,7 @@
 :root {
+  --accent: #b81f4e;
+  --accent-dark: #85143a;
+  --accent-soft: #f7d6e3;
   --red: #DD1C1A;
   --red-dark: #b71413;
   --blue: #086788;
@@ -13,7 +16,27 @@
   --muted: #776965;
   --shadow: 0 8px 22px rgba(35, 24, 21, 0.08);
   --shadow-soft: 0 4px 10px rgba(35, 24, 21, 0.06);
+  --topbar-bg: linear-gradient(90deg, var(--accent-dark), var(--accent));
+  --topbar-card: rgba(255,255,255,.14);
+  --topbar-border: rgba(255,255,255,.18);
+  --topbar-text-soft: #ffe6f0;
 }
+
+body[data-theme="dark"] {
+  --bg: #170d12;
+  --panel: #23141b;
+  --panel-soft: #2c1822;
+  --border: #4e2738;
+  --text: #f6edf1;
+  --muted: #c3aeb7;
+  --shadow: 0 14px 34px rgba(0, 0, 0, 0.34);
+  --shadow-soft: 0 8px 20px rgba(0, 0, 0, 0.24);
+  --topbar-bg: linear-gradient(90deg, #2a111a, #5a1832 52%, #7a2041);
+  --topbar-card: rgba(255,255,255,.08);
+  --topbar-border: rgba(255,255,255,.12);
+  --topbar-text-soft: #f3d7e4;
+}
+
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -34,7 +57,7 @@ button, input, textarea, select { font: inherit; }
   justify-content: space-between;
   gap: 14px;
   padding: 8px 16px;
-  background: linear-gradient(90deg, var(--red-dark), var(--red));
+  background: var(--topbar-bg);
   color: #fff;
   box-shadow: 0 2px 12px rgba(0,0,0,.12);
 }
@@ -99,7 +122,7 @@ button, input, textarea, select { font: inherit; }
   border-radius: 999px;
   display: grid;
   place-items: center;
-  background: rgba(255,255,255,.22);
+  background: rgba(255,255,255,.18);
   flex: 0 0 auto;
 }
 .address-copy { min-width: 0; }
@@ -111,7 +134,7 @@ button, input, textarea, select { font: inherit; }
   white-space: nowrap;
 }
 .address-copy span {
-  color: #ffe6e3;
+  color: var(--topbar-text-soft);
   font-size: .83rem;
 }
 .topbar-actions {
@@ -124,8 +147,8 @@ button, input, textarea, select { font: inherit; }
 .header-guest {
   padding: 10px 12px;
   border-radius: 14px;
-  background: rgba(255,255,255,.14);
-  border: 1px solid rgba(255,255,255,.15);
+  background: var(--topbar-card);
+  border: 1px solid var(--topbar-border);
   color: #fff7f7;
 }
 .user-chip {
@@ -134,8 +157,8 @@ button, input, textarea, select { font: inherit; }
   gap: 8px;
   padding: 5px 7px;
   border-radius: 16px;
-  background: rgba(255,255,255,.14);
-  border: 1px solid rgba(255,255,255,.15);
+  background: var(--topbar-card);
+  border: 1px solid var(--topbar-border);
 }
 .user-avatar,
 .profile-avatar {
@@ -146,9 +169,9 @@ button, input, textarea, select { font: inherit; }
   color: var(--red);
 }
 .topbar-btn {
-  background: rgba(255,255,255,.15) !important;
+  background: var(--topbar-card) !important;
   color: #fff !important;
-  border-color: rgba(255,255,255,.18) !important;
+  border-color: var(--topbar-border) !important;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1778,3 +1801,60 @@ button:disabled {
     flex-direction: column;
   }
 }
+
+
+.theme-wine-dark .noop{}
+.theme-toggle-ready .noop{}
+
+.topbar-btn .btn-label { white-space: nowrap; }
+
+body[data-theme="dark"] { color-scheme: dark; }
+body[data-theme="dark"] .panel,
+body[data-theme="dark"] .order-card,
+body[data-theme="dark"] .restaurant-card,
+body[data-theme="dark"] .item-card,
+body[data-theme="dark"] .cart-item,
+body[data-theme="dark"] .modal-card,
+body[data-theme="dark"] input,
+body[data-theme="dark"] textarea,
+body[data-theme="dark"] select,
+body[data-theme="dark"] .order-details-grid > div,
+body[data-theme="dark"] .order-details-block,
+body[data-theme="dark"] .order-detail-item,
+body[data-theme="dark"] .reviews-summary-card,
+body[data-theme="dark"] .review-row-card,
+body[data-theme="dark"] .coupon-dashboard-card,
+body[data-theme="dark"] .coupon-summary-pill,
+body[data-theme="dark"] .coupon-promotional-card,
+body[data-theme="dark"] .coupon-reward-card,
+body[data-theme="dark"] .address-list-item {
+  background: var(--panel);
+  color: var(--text);
+  border-color: var(--border);
+}
+body[data-theme="dark"] .muted,
+body[data-theme="dark"] .restaurant-inline-meta,
+body[data-theme="dark"] .order-items-preview,
+body[data-theme="dark"] .field-hint,
+body[data-theme="dark"] .empty,
+body[data-theme="dark"] .empty-spotlight p { color: var(--muted); }
+body[data-theme="dark"] .empty-spotlight { background: linear-gradient(180deg, rgba(122, 32, 65, 0.14), rgba(42, 17, 26, 0.6)); border-color: var(--border); }
+body[data-theme="dark"] .ghost-btn { background: #2a1820; color: var(--text); border-color: var(--border); }
+body[data-theme="dark"] .primary-btn,
+body[data-theme="dark"] .auth-toggle-btn.active { background: linear-gradient(135deg, #7a2041, #b81f4e); border-color: transparent; color: #fff; }
+body[data-theme="dark"] .restaurant-card-sub { color: var(--muted); }
+body[data-theme="dark"] .section-title,
+body[data-theme="dark"] h1,
+body[data-theme="dark"] h2,
+body[data-theme="dark"] h3,
+body[data-theme="dark"] h4,
+body[data-theme="dark"] strong,
+body[data-theme="dark"] label span { color: var(--text); }
+body[data-theme="dark"] input::placeholder,
+body[data-theme="dark"] textarea::placeholder { color: #a88996; }
+body[data-theme="dark"] .boot-card,
+body[data-theme="dark"] .global-loader-card { background: rgba(35,20,27,.96); border-color: var(--border); }
+body[data-theme="dark"] .brand-copy p { color: var(--topbar-text-soft); }
+body[data-theme="dark"] .address-chip:hover,
+body[data-theme="dark"] .topbar-btn:hover,
+body[data-theme="dark"] .user-chip:hover { box-shadow: 0 8px 20px rgba(0,0,0,.18); }

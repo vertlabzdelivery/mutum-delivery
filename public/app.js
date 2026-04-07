@@ -2,7 +2,8 @@ const STORAGE_KEYS = {
   accessToken: 'delivery_user_access_token',
   refreshToken: 'delivery_user_refresh_token',
   currentUser: 'delivery_user_current_user',
-  apiBaseUrl: 'delivery_user_api_base_url'
+  apiBaseUrl: 'delivery_user_api_base_url',
+  theme: 'delivery_user_theme'
 };
 
 const state = {
@@ -40,7 +41,8 @@ const state = {
   lastCouponValidatedCode: '',
   currentOrderDetails: null,
   currentOrderReviewContext: null,
-  currentRestaurantReviews: null
+  currentRestaurantReviews: null,
+  theme: localStorage.getItem(STORAGE_KEYS.theme) || 'light'
 };
 
 const el = {
@@ -121,6 +123,7 @@ const el = {
   profileModal: document.getElementById('profileModal'),
   ordersBtn: document.getElementById('ordersBtn'),
   couponsBtn: document.getElementById('couponsBtn'),
+  themeToggleBtn: document.getElementById('themeToggleBtn'),
   ordersModal: document.getElementById('ordersModal'),
   ordersList: document.getElementById('ordersList'),
   couponsModal: document.getElementById('couponsModal'),
@@ -181,6 +184,7 @@ init();
 
 async function init() {
   bindEvents();
+  applyTheme(state.theme);
   updateHeader();
   setAuthMode('login');
   updateOrderNotesHint();
@@ -1427,22 +1431,59 @@ async function loadAddresses() {
   return true;
 }
 
+async function fetchAllActiveRestaurants(limit = 100) {
+  const collected = [];
+  const seen = new Set();
+  let page = 1;
+  let totalPages = 1;
+
+  while (page <= totalPages && page <= 20) {
+    const payload = await apiRequest(`/restaurants/active?page=${page}&limit=${limit}`, { retryOn401: false }).catch(() => null);
+    const items = unwrapCollection(payload);
+    for (const item of items) {
+      if (!item?.id || seen.has(item.id)) continue;
+      seen.add(item.id);
+      collected.push(item);
+    }
+    const pagination = payload?.pagination || payload?.meta || payload?.pageInfo || null;
+    totalPages = Number(pagination?.totalPages || pagination?.pages || (items.length < limit ? page : page + 1));
+    if (!items.length) break;
+    if (!pagination?.totalPages && items.length < limit) break;
+    page += 1;
+  }
+
+  return collected;
+}
+
 async function loadRestaurantsByAddress() {
   if (!state.selectedAddressId) return;
   const currentAddress = state.addresses.find((item) => item.id === state.selectedAddressId);
   if (!currentAddress) return;
 
-  const [availableRaw, allRaw] = await Promise.all([
+  const [availableRaw, activeRaw] = await Promise.all([
     apiRequest(`/restaurants/available/by-address/${state.selectedAddressId}`, { auth: true, retryOn401: true }).catch(() => []),
-    apiRequest('/restaurants', { retryOn401: false }).catch(() => [])
+    fetchAllActiveRestaurants().catch(() => [])
   ]);
 
-  const availableMap = new Map(unwrapCollection(availableRaw).map((item) => [item.id, item]));
-  const sameCityRestaurants = unwrapCollection(allRaw)
-    .filter((item) => (item.cityId || item.city?.id || '') === currentAddress.cityId)
+  const availableRestaurants = unwrapCollection(availableRaw).map(normalizeRestaurant);
+  const availableMap = new Map(availableRestaurants.map((item) => [item.id, item]));
+
+  const activeRestaurants = Array.isArray(activeRaw) ? activeRaw : unwrapCollection(activeRaw);
+  const sameCityRestaurants = activeRestaurants
+    .filter((item) => String(item.cityId || item.city?.id || '') === String(currentAddress.cityId || ''))
     .map(normalizeRestaurant);
 
-  const zoneEntries = await Promise.all(sameCityRestaurants
+  const mergedById = new Map();
+  for (const restaurant of sameCityRestaurants) mergedById.set(restaurant.id, restaurant);
+  for (const restaurant of availableRestaurants) {
+    if (!restaurant?.id) continue;
+    const current = mergedById.get(restaurant.id) || {};
+    mergedById.set(restaurant.id, { ...current, ...restaurant });
+  }
+
+  const mergedRestaurants = Array.from(mergedById.values());
+
+  const zoneEntries = await Promise.all(mergedRestaurants
     .filter((item) => item.isActive)
     .map(async (restaurant) => {
       const zones = unwrapCollection(await apiRequest(`/restaurant-delivery-zones/public/restaurant/${restaurant.id}`, { retryOn401: false }).catch(() => []));
@@ -1450,33 +1491,34 @@ async function loadRestaurantsByAddress() {
     }));
   const zonesByRestaurant = new Map(zoneEntries);
 
-  const hourEntries = sameCityRestaurants.map((restaurant) => {
+  const hourEntries = mergedRestaurants.map((restaurant) => {
     const hours = normalizeOpeningHours(restaurant.hours || restaurant.openingHours || []);
     return [restaurant.id, hours];
   });
   state.restaurantHoursById = Object.fromEntries(hourEntries);
 
-  state.restaurants = sameCityRestaurants.map((restaurant) => {
+  state.restaurants = mergedRestaurants.map((restaurant) => {
     const matchingAvailable = availableMap.get(restaurant.id);
     const zones = zonesByRestaurant.get(restaurant.id) || [];
     const hours = state.restaurantHoursById[restaurant.id] || [];
-    const neighborhoodZone = zones.find((zone) => (zone.neighborhoodId || zone.neighborhood?.id) === currentAddress.neighborhoodId && zone.isActive !== false);
+    const neighborhoodZone = zones.find((zone) => String(zone.neighborhoodId || zone.neighborhood?.id || '') === String(currentAddress.neighborhoodId || '') && zone.isActive !== false);
     const previewZone = neighborhoodZone || zones.find((zone) => zone.isActive !== false) || null;
-    const deliveryFee = Number(neighborhoodZone?.deliveryFee ?? previewZone?.deliveryFee ?? 0);
-    const minTime = Number(neighborhoodZone?.minTime ?? previewZone?.minTime ?? 0);
-    const maxTime = Number(neighborhoodZone?.maxTime ?? previewZone?.maxTime ?? 0);
+    const deliveryFee = Number(matchingAvailable?.deliveryFee ?? neighborhoodZone?.deliveryFee ?? previewZone?.deliveryFee ?? 0);
+    const minTime = Number(matchingAvailable?.minTime ?? neighborhoodZone?.minTime ?? previewZone?.minTime ?? 0);
+    const maxTime = Number(matchingAvailable?.maxTime ?? neighborhoodZone?.maxTime ?? previewZone?.maxTime ?? 0);
     const categoryNames = unwrapCollection(restaurant.menuCategories || matchingAvailable?.menuCategories || []).map((item) => item.name).filter(Boolean);
     const isAvailableForAddress = Boolean(matchingAvailable || neighborhoodZone);
     const openInfo = getRestaurantOpenInfo(hours);
     const isCurrentlyOpen = restaurant.isActive && openInfo.isOpen;
     return {
       ...restaurant,
+      ...(matchingAvailable || {}),
       hours,
       categoryNames,
       deliveryFee,
       minTime,
       maxTime,
-      rating: Number(restaurant.rating || 5),
+      rating: Number(restaurant.averageRating || restaurant.ratingAverage || restaurant.rating || 0),
       isAvailableForAddress,
       isClosed: !isCurrentlyOpen,
       isCurrentlyOpen,
@@ -1488,7 +1530,7 @@ async function loadRestaurantsByAddress() {
 
   state.restaurantBuckets = {
     available: state.restaurants.filter((item) => item.isCurrentlyOpen && item.isAvailableForAddress),
-    closed: state.restaurants.filter((item) => !item.isCurrentlyOpen),
+    closed: state.restaurants.filter((item) => !item.isCurrentlyOpen && item.isAvailableForAddress),
     cityOnly: state.restaurants.filter((item) => item.isCurrentlyOpen && !item.isAvailableForAddress)
   };
 
@@ -2519,6 +2561,24 @@ function toggleModal(modalId, isOpen) {
   const modal = document.getElementById(modalId);
   if (!modal) return;
   modal.classList.toggle('hidden', !isOpen);
+}
+
+function applyTheme(theme = 'light') {
+  const normalized = theme === 'dark' ? 'dark' : 'light';
+  state.theme = normalized;
+  document.body.setAttribute('data-theme', normalized);
+  localStorage.setItem(STORAGE_KEYS.theme, normalized);
+  if (el.themeToggleBtn) {
+    el.themeToggleBtn.innerHTML = normalized === 'dark'
+      ? '<span class="btn-icon" aria-hidden="true">☀️</span><span class="btn-label">Tema claro</span>'
+      : '<span class="btn-icon" aria-hidden="true">🌙</span><span class="btn-label">Tema escuro</span>';
+    el.themeToggleBtn.setAttribute('aria-label', normalized === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro');
+    el.themeToggleBtn.title = normalized === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro';
+  }
+}
+
+function toggleTheme() {
+  applyTheme(state.theme === 'dark' ? 'light' : 'dark');
 }
 
 async function apiRequest(path, options = {}) {
